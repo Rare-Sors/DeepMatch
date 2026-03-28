@@ -27,13 +27,15 @@ function EmptyState({ copy }: { copy: string }) {
 
 function DashboardCard({
   children,
+  tone = "default",
   title,
 }: {
   children: ReactNode;
+  tone?: "default" | "accent";
   title: string;
 }) {
   return (
-    <section className="panel-lg">
+    <section className={tone === "accent" ? "panel-lg panel-accent" : "panel-lg"}>
       <div className="section-label">{title}</div>
       <div className="mt-4">{children}</div>
     </section>
@@ -114,6 +116,13 @@ export function DashboardPage() {
     [profiles, session],
   );
 
+  const counterpartForMatch = (participantIds: string[]) => {
+    const counterpartId =
+      participantIds.find((agentId) => agentId !== session?.agentId) ?? session?.agentId ?? "";
+
+    return findProfile(profiles, counterpartId);
+  };
+
   return (
     <main className="page-shell">
       <TopNav />
@@ -134,123 +143,149 @@ export function DashboardPage() {
 
       {session && inbox ? (
         <div className="grid gap-4">
-          <DashboardCard title="My Profile">
-            {ownProfile ? (
-              <div className="grid gap-4 md:grid-cols-[1.2fr_0.8fr]">
-                <div>
-                  <div className="section-label">Founder</div>
-                  <div className="mt-1 text-base font-semibold text-[var(--foreground)]">
-                    {ownProfile.founderName || session.displayName}
-                  </div>
-                  <h2 className="text-2xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
-                    {ownProfile.headline}
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                    {ownProfile.oneLineThesis}
-                  </p>
+          <section className="summary-strip">
+            <div className="summary-block">
+              <div className="section-label">Founder</div>
+              <div className="mt-1 text-lg font-semibold tracking-[-0.02em] text-[var(--foreground)]">
+                {ownProfile?.founderName || session.displayName}
+              </div>
+              <div className="mt-1 text-sm text-[var(--muted)]">
+                {ownProfile?.baseLocation || ownProfile?.regionTimezone || "Location not listed"}
+              </div>
+            </div>
+            <div className="summary-block summary-block-wide">
+              <div className="section-label">Profile</div>
+              <div className="mt-1 text-base font-semibold text-[var(--foreground)]">
+                {ownProfile?.headline || "No public profile"}
+              </div>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
+                {ownProfile?.oneLineThesis || "No public thesis yet."}
+              </p>
+            </div>
+            <div className="summary-chips">
+              <span className="mini-chip">{session.level}</span>
+              {ownProfile?.commitmentLevel ? <span className="mini-chip">{ownProfile.commitmentLevel}</span> : null}
+              {ownProfile?.currentStage ? (
+                <span className="mini-chip">{ownProfile.currentStage.replaceAll("_", " ")}</span>
+              ) : null}
+              {inbox.handoffs.length ? <span className="mini-chip">{`${inbox.handoffs.length} handoff`}</span> : null}
+            </div>
+          </section>
+
+          <div className="dashboard-stack">
+            <DashboardCard title="Human Handoff" tone="accent">
+              {inbox.handoffs.length ? (
+                <div className="grid gap-3">
+                  {inbox.handoffs.map((handoff) => {
+                    const match = inbox.matches.find((item) => item.id === handoff.matchId) ?? null;
+                    const counterpart = match ? counterpartForMatch(match.participantAgentIds) : null;
+
+                    return (
+                      <article key={handoff.id} className="compact-row compact-row-accent">
+                        <div className="space-y-2">
+                          <div>
+                            <div className="text-base font-semibold text-[var(--foreground)]">
+                              {counterpart?.founderName || "Matched founder"}
+                            </div>
+                            <div className="mt-1 text-sm font-medium text-[var(--foreground)]">
+                              {counterpart?.headline || handoff.matchId}
+                            </div>
+                            <div className="mt-1 text-sm text-[var(--muted)]">
+                              {counterpart?.baseLocation || counterpart?.regionTimezone || "Location not listed"}
+                            </div>
+                          </div>
+                          <p className="text-sm leading-6 text-[var(--muted)]">{handoff.introTemplate}</p>
+                          <div className="flex flex-wrap gap-2">
+                            {handoff.contactChannels.map((item) => (
+                              <span key={item} className="mini-chip">
+                                {item}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <span className="status-pill-accent">{handoff.contactExchangeStatus}</span>
+                      </article>
+                    );
+                  })}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <span className="mini-chip">{ownProfile.commitmentLevel}</span>
-                  <span className="mini-chip">{ownProfile.currentStage.replaceAll("_", " ")}</span>
-                  {ownProfile.baseLocation ? (
-                    <span className="mini-chip">{ownProfile.baseLocation}</span>
-                  ) : null}
-                  {ownProfile.regionTimezone ? (
-                    <span className="mini-chip">{ownProfile.regionTimezone}</span>
-                  ) : null}
+              ) : (
+                <EmptyState copy="No human handoffs unlocked." />
+              )}
+            </DashboardCard>
+
+            <DashboardCard title="Successful Matches">
+              {inbox.matches.length ? (
+                <div className="grid gap-3">
+                  {inbox.matches.map((match) => {
+                    const counterpart = counterpartForMatch(match.participantAgentIds);
+                    const memo = inbox.fitMemos.find((item) => item.matchId === match.id) ?? null;
+
+                    return (
+                      <article key={match.id} className="compact-row">
+                        <div className="space-y-2">
+                          <div>
+                            <div className="text-base font-semibold text-[var(--foreground)]">
+                              {counterpart?.founderName || "Matched founder"}
+                            </div>
+                            <div className="mt-1 text-sm font-medium text-[var(--foreground)]">
+                              {counterpart?.headline || match.id}
+                            </div>
+                            <div className="mt-1 text-sm text-[var(--muted)]">
+                              {counterpart?.baseLocation || counterpart?.regionTimezone || "Location not listed"}
+                            </div>
+                          </div>
+                          <p className="text-sm leading-6 text-[var(--muted)]">
+                            {memo?.matchRationale ?? "Match confirmed."}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <span className="status-pill">{match.matchStatus}</span>
+                          {memo ? <span className="mini-chip">{memo.confidenceLevel}</span> : null}
+                        </div>
+                      </article>
+                    );
+                  })}
                 </div>
-              </div>
-            ) : (
-              <EmptyState copy="No public profile found for this founder yet." />
-            )}
-          </DashboardCard>
+              ) : (
+                <EmptyState copy="No successful matches yet." />
+              )}
+            </DashboardCard>
 
-          <DashboardCard title="Received Requests">
-            {inbox.incomingRequests.length ? (
-              <div className="grid gap-3">
-                {inbox.incomingRequests.map((request) => {
-                  const requester = findProfile(profiles, request.requesterAgentId);
+            <DashboardCard title="Received Requests">
+              {inbox.incomingRequests.length ? (
+                <div className="grid gap-3">
+                  {inbox.incomingRequests.map((request) => {
+                    const requester = findProfile(profiles, request.requesterAgentId);
 
-                  return (
-                    <article key={request.id} className="compact-row">
-                      <div>
-                        <div className="font-semibold text-[var(--foreground)]">
-                          {requester?.headline ?? request.requesterAgentId}
+                    return (
+                      <article key={request.id} className="compact-row">
+                        <div className="space-y-2">
+                          <div>
+                            <div className="text-base font-semibold text-[var(--foreground)]">
+                              {requester?.founderName || request.requesterAgentId}
+                            </div>
+                            <div className="mt-1 text-sm font-medium text-[var(--foreground)]">
+                              {requester?.headline || request.requesterAgentId}
+                            </div>
+                            <div className="mt-1 text-sm text-[var(--muted)]">
+                              {requester?.baseLocation || requester?.regionTimezone || "Location not listed"}
+                            </div>
+                          </div>
+                          <p className="text-sm leading-6 text-[var(--muted)]">{request.justification}</p>
                         </div>
-                        <div className="mt-1 text-sm text-[var(--muted)]">
-                          {request.justification}
+                        <div className="flex flex-wrap gap-2">
+                          <span className="status-pill">{request.status}</span>
+                          <span className="mini-chip">{request.classification}</span>
                         </div>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <span className="status-pill">{request.status}</span>
-                        <span className="mini-chip">{request.classification}</span>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            ) : (
-              <EmptyState copy="No match requests." />
-            )}
-          </DashboardCard>
-
-          <DashboardCard title="Successful Matches">
-            {inbox.matches.length ? (
-              <div className="grid gap-3">
-                {inbox.matches.map((match) => {
-                  const counterpartId =
-                    match.participantAgentIds.find((agentId) => agentId !== session.agentId) ??
-                    session.agentId;
-                  const counterpart = findProfile(profiles, counterpartId);
-                  const memo = inbox.fitMemos.find((item) => item.matchId === match.id) ?? null;
-
-                  return (
-                    <article key={match.id} className="compact-row">
-                      <div>
-                        <div className="font-semibold text-[var(--foreground)]">
-                          {counterpart?.headline ?? counterpartId}
-                        </div>
-                        <div className="mt-1 text-sm text-[var(--muted)]">
-                          {memo?.matchRationale ?? "Match confirmed."}
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <span className="status-pill">{match.matchStatus}</span>
-                        {memo ? <span className="mini-chip">{memo.confidenceLevel}</span> : null}
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            ) : (
-              <EmptyState copy="No successful matches yet." />
-            )}
-          </DashboardCard>
-
-          <DashboardCard title="Human Handoff">
-            {inbox.handoffs.length ? (
-              <div className="grid gap-3">
-                {inbox.handoffs.map((handoff) => (
-                  <article key={handoff.id} className="compact-row">
-                    <div>
-                      <div className="font-semibold text-[var(--foreground)]">{handoff.matchId}</div>
-                      <div className="mt-1 text-sm text-[var(--muted)]">{handoff.introTemplate}</div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {handoff.contactChannels.map((item) => (
-                          <span key={item} className="mini-chip">
-                            {item}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <span className="status-pill-accent">{handoff.contactExchangeStatus}</span>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <EmptyState copy="No human handoffs unlocked." />
-            )}
-          </DashboardCard>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <EmptyState copy="No match requests." />
+              )}
+            </DashboardCard>
+          </div>
         </div>
       ) : (
         <section className="panel-lg">
