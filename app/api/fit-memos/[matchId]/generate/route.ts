@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import { authorizeWrite, requireSession } from "@/lib/request-context";
-import { notFound, ok, unauthorized, serverError } from "@/lib/http";
+import { errorResponse, notFound, ok, unauthorized } from "@/lib/http";
 import { deepMatchStore } from "@/lib/store";
 
 export async function POST(
@@ -24,8 +24,6 @@ export async function POST(
 
     return ok({ fitMemo: memo });
   } catch (error) {
-    return serverError("Failed to generate fit memo.", {
-      message: error instanceof Error ? error.message : "Unknown error",
-    });
+    return errorResponse(error, "Failed to generate fit memo.");
   }
 }

@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import { authorizeWrite, requireSession } from "@/lib/request-context";
-import { badRequest, ok, unauthorized, serverError } from "@/lib/http";
+import { badRequest, errorResponse, ok, unauthorized } from "@/lib/http";
 import { deepMatchStore } from "@/lib/store";
 import { matchRequestSchema } from "@/lib/validation";
 
@@ -33,8 +33,6 @@ export async function POST(request: NextRequest) {
       }),
     );
   } catch (error) {
-    return serverError("Failed to create match request.", {
-      message: error instanceof Error ? error.message : "Unknown error",
-    });
+    return errorResponse(error, "Failed to create match request.");
   }
 }

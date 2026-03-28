@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import { authorizeWrite, requireSession } from "@/lib/request-context";
-import { badRequest, notFound, ok, unauthorized, serverError } from "@/lib/http";
+import { badRequest, errorResponse, notFound, ok, unauthorized } from "@/lib/http";
 import { deepMatchStore } from "@/lib/store";
 import { preCommunicationMessageSchema } from "@/lib/validation";
 
@@ -55,8 +55,6 @@ export async function POST(
 
     return ok(result);
   } catch (error) {
-    return serverError("Failed to append pre-communication message.", {
-      message: error instanceof Error ? error.message : "Unknown error",
-    });
+    return errorResponse(error, "Failed to append pre-communication message.");
   }
 }

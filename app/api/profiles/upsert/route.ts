@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 
 import { authorizeWrite, requireSession } from "@/lib/request-context";
 import { deepMatchStore } from "@/lib/store";
-import { badRequest, ok, unauthorized, serverError } from "@/lib/http";
+import { badRequest, errorResponse, ok, unauthorized } from "@/lib/http";
 import { profileUpsertSchema } from "@/lib/validation";
 
 export async function POST(request: NextRequest) {
@@ -26,7 +26,6 @@ export async function POST(request: NextRequest) {
       }),
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return serverError("Failed to upsert profiles.", { message });
+    return errorResponse(error, "Failed to upsert profiles.");
   }
 }

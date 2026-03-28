@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import { authorizeWrite, requireSession } from "@/lib/request-context";
-import { forbidden, notFound, ok, unauthorized, serverError } from "@/lib/http";
+import { errorResponse, forbidden, notFound, ok, unauthorized } from "@/lib/http";
 import { deepMatchStore } from "@/lib/store";
 
 export async function POST(
@@ -28,8 +28,6 @@ export async function POST(
 
     return ok({ handoff });
   } catch (error) {
-    return serverError("Failed to unlock handoff.", {
-      message: error instanceof Error ? error.message : "Unknown error",
-    });
+    return errorResponse(error, "Failed to unlock handoff.");
   }
 }

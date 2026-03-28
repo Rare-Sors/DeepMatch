@@ -1,11 +1,17 @@
 import test from "node:test";
+import { beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
+import { HttpError, errorResponse } from "../lib/http.ts";
 import { getSuggestedMatchingNextStep, shouldCreateMutualMatch } from "../lib/matching/state-machine.ts";
 import { buildFitMemo } from "../lib/precomm/fit-memo.ts";
 import { capTrustTierForIdentityMode, hasTier } from "../lib/permissions.ts";
 import { deepMatchStore } from "../lib/store.ts";
 import type { MatchRecord, PreCommunicationMessage } from "../types/domain.ts";
+
+beforeEach(() => {
+  deepMatchStore.reset();
+});
 
 test("public identity caps L2 to L1", () => {
   assert.equal(capTrustTierForIdentityMode("L2", "public"), "L1");
@@ -42,6 +48,14 @@ test("matching workflow is inbox-first before scanning profiles", () => {
     getSuggestedMatchingNextStep({
       incomingRequests: [],
       matches: [{ matchStatus: "active" }],
+    }).step,
+    "start_pre_communication",
+  );
+
+  assert.deepEqual(
+    getSuggestedMatchingNextStep({
+      incomingRequests: [],
+      matches: [{ matchStatus: "handoff_ready" }],
     }).step,
     "start_pre_communication",
   );
@@ -261,4 +275,148 @@ test("simulated founder flow reaches mutual match, pre-comm, memo, and handoff",
   const handoff = deepMatchStore.unlockHandoff(mutual!.match!.id, alice.agentId);
   assert.ok(handoff);
   assert.equal(handoff!.contactExchangeStatus, "ready");
+});
+
+test("expired sessions are rejected by the local session store", () => {
+  deepMatchStore.upsertSession({
+    sessionToken: "expired_session",
+    agentId: "expired_agent",
+    identityMode: "full",
+    rawLevel: "L1",
+    level: "L1",
+    displayName: "Expired Agent",
+    sessionPubkey: "pub_expired",
+    lastSeenAt: new Date().toISOString(),
+    expiresAt: Math.floor(Date.now() / 1000) - 30,
+  });
+
+  assert.equal(deepMatchStore.getSession("expired_session"), undefined);
+});
+
+test("profile trust tier follows the latest agent level instead of an older session", () => {
+  const now = new Date().toISOString();
+
+  deepMatchStore.upsertSession({
+    sessionToken: "old_public",
+    agentId: "agent_upgrade",
+    identityMode: "public",
+    rawLevel: "L2",
+    level: "L1",
+    displayName: "Upgrade Agent",
+    sessionPubkey: "pub_old",
+    lastSeenAt: now,
+  });
+
+  deepMatchStore.upsertSession({
+    sessionToken: "new_full",
+    agentId: "agent_upgrade",
+    identityMode: "full",
+    rawLevel: "L2",
+    level: "L2",
+    displayName: "Upgrade Agent",
+    sessionPubkey: "pub_new",
+    lastSeenAt: now,
+  });
+
+  const result = deepMatchStore.upsertProfile("agent_upgrade", {
+    publicProfile: {
+      headline: "Founder upgrading to full identity",
+      oneLineThesis: "Need a better governance signal",
+      whyNowBrief: "Trust tier should reflect the active session.",
+      currentStage: "idea",
+      currentProgress: "Testing trust semantics.",
+      commitmentLevel: "full-time",
+      activelyLooking: true,
+      founderStrengths: ["product"],
+      lookingFor: ["engineering"],
+      preferredRoleSplit: "Product plus GTM partner with technical cofounder.",
+      skillTags: ["AI"],
+      workStyleSummary: "Direct.",
+      regionTimezone: "UTC+8",
+      collaborationConstraintsBrief: "None.",
+      publicProofs: ["prototype"],
+    },
+    detailProfile: {
+      fullProblemStatement: "Profile tier drift after relogin.",
+      currentHypothesis: "Use agent-level effective tier when persisting profiles.",
+      ideaRigidity: "solution-flexible",
+      whyMe: "I hit the bug.",
+      executionHistory: "Test coverage.",
+      proofDetails: ["failing repro"],
+      currentAvailabilityDetails: "Full-time.",
+      roleExpectation: "Own product.",
+      decisionStyle: "data-first",
+      communicationStyle: "concise",
+      valuesAndNonNegotiables: ["clarity"],
+      riskPreference: "moderate",
+      equityAndStructureExpectation: "standard",
+      openQuestionsForMatch: ["Does the tier stay fresh?"],
+      redFlagChecks: ["stale session"],
+      collaborationTrialPreference: "short sprint",
+      agentAuthorityScope: ["profile save"],
+      disclosureGuardrails: ["none"],
+    },
+  });
+
+  assert.equal(result.publicProfile.trustTier, "L2");
+});
+
+test("daily match quota is enforced for L1 agents", () => {
+  const now = new Date().toISOString();
+
+  deepMatchStore.upsertSession({
+    sessionToken: "quota_owner",
+    agentId: "quota_owner",
+    identityMode: "full",
+    rawLevel: "L1",
+    level: "L1",
+    displayName: "Quota Owner",
+    sessionPubkey: "pub_quota_owner",
+    lastSeenAt: now,
+  });
+
+  for (let index = 0; index < 9; index += 1) {
+    const targetAgentId = `quota_target_${index}`;
+    deepMatchStore.upsertSession({
+      sessionToken: `quota_session_${index}`,
+      agentId: targetAgentId,
+      identityMode: "full",
+      rawLevel: "L1",
+      level: "L1",
+      displayName: targetAgentId,
+      sessionPubkey: `pub_${targetAgentId}`,
+      lastSeenAt: now,
+    });
+  }
+
+  for (let index = 0; index < 8; index += 1) {
+    const result = deepMatchStore.createMatchRequest("quota_owner", {
+      targetAgentId: `quota_target_${index}`,
+      justification: "Quota test",
+      attractivePoints: ["signal"],
+      complementSummary: "Complementary skills.",
+      classification: "strong fit",
+    });
+    assert.equal(result.request.targetAgentId, `quota_target_${index}`);
+  }
+
+  assert.throws(
+    () =>
+      deepMatchStore.createMatchRequest("quota_owner", {
+        targetAgentId: "quota_target_8",
+        justification: "Quota test",
+        attractivePoints: ["signal"],
+        complementSummary: "Complementary skills.",
+        classification: "strong fit",
+      }),
+    /Daily match quota of 8 reached/,
+  );
+});
+
+test("http errors map to the original status code instead of becoming 500s", async () => {
+  const response = errorResponse(new HttpError(403, "This action requires L1 access."), "fallback");
+  const json = await response.json();
+
+  assert.equal(response.status, 403);
+  assert.equal(json.error, "This action requires L1 access.");
 });

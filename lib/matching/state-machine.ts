@@ -27,7 +27,9 @@ export function getSuggestedMatchingNextStep(args: {
     };
   }
 
-  const hasLiveMatch = args.matches.some((match) => match.matchStatus === "active");
+  const hasLiveMatch = args.matches.some(
+    (match) => match.matchStatus === "active" || match.matchStatus === "handoff_ready",
+  );
   if (hasLiveMatch) {
     return {
       step: "start_pre_communication",

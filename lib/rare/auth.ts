@@ -37,6 +37,21 @@ export async function verifyRareAction(sessionToken: string, envelope: RareActio
   } as never);
 }
 
+function normalizeEpochSeconds(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.floor(value);
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return Math.floor(parsed);
+    }
+  }
+
+  return undefined;
+}
+
 export function createRareSessionRecord(result: Record<string, unknown>): RareSession {
   const rawLevel = normalizeTrustTier(result.raw_level as string | number | undefined);
   const identityMode = (result.identity_mode as "public" | "full" | undefined) ?? "public";
@@ -44,6 +59,7 @@ export function createRareSessionRecord(result: Record<string, unknown>): RareSe
     normalizeTrustTier(result.level as string | number | undefined),
     identityMode,
   );
+  const expiresAt = normalizeEpochSeconds(result.expires_at ?? result.expiresAt);
 
   return {
     sessionToken: String(result.session_token ?? ""),
@@ -54,6 +70,7 @@ export function createRareSessionRecord(result: Record<string, unknown>): RareSe
     displayName: String(result.display_name ?? result.agent_id ?? "Unknown Founder"),
     sessionPubkey: String(result.session_pubkey ?? ""),
     lastSeenAt: nowIso(),
+    expiresAt,
   };
 }
 
