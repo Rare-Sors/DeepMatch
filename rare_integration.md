@@ -107,7 +107,8 @@ const kit = createRarePlatformKit({
   challengeStore: new InMemoryChallengeStore(),
   replayStore: new InMemoryReplayStore(),
   sessionStore: new InMemorySessionStore(),
-  // Required when you verify hosted-signer delegations.
+  // Optional override. When rareApiClient is configured, the kit can
+  // auto-discover the hosted delegation signer from Rare JWKS.
   // rareSignerPublicKeyB64: "<rare signer Ed25519 public x>",
 });
 ```
@@ -269,6 +270,14 @@ Hosted-signer delegations require the Rare signer public key:
 
 - `rareSignerPublicKeyB64`
 
+If `rareApiClient` is configured, the TypeScript kit can auto-discover this key
+from `GET /.well-known/rare-keys.json`.
+
+Set `rareSignerPublicKeyB64` explicitly only when:
+
+- you want to pin the Rare signer key manually
+- you verify offline without a Rare API client
+
 If you only verify self-hosted delegations, that extra signer key is not required.
 
 ## Definition Of Done For The First Integration
@@ -276,10 +285,17 @@ If you only verify self-hosted delegations, that extra signer key is not require
 Treat the first pass as complete when all of these are true:
 
 - `/auth/challenge` returns a nonce-bearing challenge
-- `/auth/complete` returns `session_token`
+- `/auth/complete` returns a usable platform session token
 - `rare --platform-url <platform>/api/rare login --aud <aud> --public-only` succeeds
 - your backend stores sessions and accepts the returned `session_token`
 - replay checks are active for challenge nonces and delegation tokens
+
+For best compatibility, return one of these login result shapes:
+
+- top-level `session_token`
+- top-level `sessionToken`
+- nested `session.session_token`
+- nested `session.sessionToken`
 
 ## Verification Red Lines
 
