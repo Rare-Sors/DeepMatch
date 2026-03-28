@@ -18,7 +18,7 @@ export async function POST(request: Request) {
 
     if (looksLikeRareRegisterResponse(body as Record<string, unknown>)) {
       return badRequest(
-        "Received Rare registration output, not a platform login payload. Run `rare login --aud <your-aud> --platform-url <your-app>/api/rare` and use that delegated auth flow instead.",
+        "Received Rare registration output, not a platform login payload. Run `rare --platform-url <your-app>/api/rare login --aud <your-aud>` and use that delegated auth flow instead.",
       );
     }
 

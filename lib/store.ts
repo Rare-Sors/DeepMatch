@@ -87,8 +87,16 @@ function seedTestCandidates(state: MemoryStoreState) {
         openQuestionsForMatch: ["How do you approach customer development?", "What's your GTM strategy for developer tools?"],
         redFlagChecks: ["Part-time mindset", "No customer empathy", "Can't handle ambiguity"],
         collaborationTrialPreference: "4-week trial: jointly interview 20 potential customers, define MVP scope, build landing page",
-        agentAuthorityScope: "Can discuss role split, time commitment, equity principles. Cannot commit to final terms",
-        disclosureGuardrails: "No customer names, no revenue projections, no technical architecture details until after trial",
+        agentAuthorityScope: [
+          "Role split",
+          "Time commitment",
+          "Equity principles",
+        ],
+        disclosureGuardrails: [
+          "No customer names",
+          "No revenue projections",
+          "No technical architecture details until after trial",
+        ],
       },
     },
     {
@@ -128,8 +136,15 @@ function seedTestCandidates(state: MemoryStoreState) {
         openQuestionsForMatch: ["Have you built HIPAA-compliant systems?", "Comfortable with healthcare regulations?"],
         redFlagChecks: ["Move fast and break things mentality (dangerous in healthcare)", "No patience for compliance"],
         collaborationTrialPreference: "2-week trial: build technical proof-of-concept for FHIR data ingestion",
-        agentAuthorityScope: "Can discuss technical requirements, role split, timeline. Cannot commit to equity terms",
-        disclosureGuardrails: "No customer names, no detailed revenue model until after trial",
+        agentAuthorityScope: [
+          "Technical requirements",
+          "Role split",
+          "Timeline",
+        ],
+        disclosureGuardrails: [
+          "No customer names",
+          "No detailed revenue model until after trial",
+        ],
       },
     },
     {
@@ -169,8 +184,15 @@ function seedTestCandidates(state: MemoryStoreState) {
         openQuestionsForMatch: ["Can you join immediately?", "Comfortable being technical co-CEO vs pure CTO?"],
         redFlagChecks: ["Can't commit full-time", "Perfectionist (need to ship fast)", "Not comfortable with sales/customer conversations"],
         collaborationTrialPreference: "1-week trial: review current codebase, propose technical roadmap, jointly pitch to 2 customers",
-        agentAuthorityScope: "Can discuss equity, role split, technical roadmap. Cannot commit to final terms without lawyer review",
-        disclosureGuardrails: "No customer names, no detailed financials until after trial",
+        agentAuthorityScope: [
+          "Equity",
+          "Role split",
+          "Technical roadmap",
+        ],
+        disclosureGuardrails: [
+          "No customer names",
+          "No detailed financials until after trial",
+        ],
       },
     },
   ];
