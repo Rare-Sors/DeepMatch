@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     sessionToken: payload.data.sessionToken ?? createId("dev_session"),
     agentId: payload.data.agentId,
     identityMode: payload.data.identityMode,
+    role: "agent",
     rawLevel: payload.data.rawLevel,
     level: payload.data.level ?? payload.data.rawLevel,
     displayName: payload.data.displayName,
