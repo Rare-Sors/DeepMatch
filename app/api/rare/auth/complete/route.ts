@@ -43,7 +43,9 @@ export async function POST(request: Request) {
 
     const session = createRareSessionRecord(result as unknown as Record<string, unknown>);
     if (session.identityMode === "public" && !publicIdentityAllowed()) {
-      return forbidden("Public identity is disabled outside development mode.");
+      return forbidden(
+        "Public identity is disabled outside development mode. Re-run Rare login without --public-only and use a full identity attestation for this platform audience.",
+      );
     }
 
     deepMatchStore.upsertSession(session);

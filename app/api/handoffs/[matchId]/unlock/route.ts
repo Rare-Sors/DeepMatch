@@ -14,7 +14,7 @@ export async function POST(
   }
 
   try {
-    await authorizeWrite(request, session, "L1");
+    await authorizeWrite(request, session, "L1", undefined, "Unlocking handoff");
 
     const { matchId } = await context.params;
     const handoff = deepMatchStore.unlockHandoff(matchId, session.agentId);

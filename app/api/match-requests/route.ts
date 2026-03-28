@@ -17,7 +17,13 @@ export async function POST(request: NextRequest) {
       return badRequest("Invalid match request payload.", payload.error.flatten());
     }
 
-    await authorizeWrite(request, session, "L1", payload.data.actionVerification);
+    await authorizeWrite(
+      request,
+      session,
+      "L1",
+      payload.data.actionVerification,
+      "Sending a match request",
+    );
 
     if (payload.data.targetAgentId === session.agentId) {
       return badRequest("You cannot match with yourself.");

@@ -487,11 +487,19 @@ test("daily match quota is enforced for L1 agents", () => {
 });
 
 test("http errors map to the original status code instead of becoming 500s", async () => {
-  const response = errorResponse(new HttpError(403, "This action requires L1 access."), "fallback");
+  const response = errorResponse(
+    new HttpError(
+      403,
+      "Sending a match request requires L1 access. Current trust tier: L0.",
+      { currentTier: "L0", requiredTier: "L1" },
+    ),
+    "fallback",
+  );
   const json = await response.json();
 
   assert.equal(response.status, 403);
-  assert.equal(json.error, "This action requires L1 access.");
+  assert.equal(json.error, "Sending a match request requires L1 access. Current trust tier: L0.");
+  assert.deepEqual(json.details, { currentTier: "L0", requiredTier: "L1" });
 });
 
 test("dashboard access links are one-time and mint weekly viewer sessions", () => {
@@ -545,7 +553,7 @@ test("viewer sessions cannot perform write actions", async () => {
 
   await assert.rejects(
     () => authorizeWrite(request, session, "L0"),
-    /Dashboard viewer sessions cannot perform write actions/,
+    /Dashboard viewer sessions are read-only/,
   );
 });
 

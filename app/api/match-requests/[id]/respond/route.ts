@@ -20,7 +20,13 @@ export async function POST(
       return badRequest("Invalid match response payload.", payload.error.flatten());
     }
 
-    await authorizeWrite(request, session, "L1", payload.data.actionVerification);
+    await authorizeWrite(
+      request,
+      session,
+      "L1",
+      payload.data.actionVerification,
+      "Responding to a match request",
+    );
 
     const { id } = await context.params;
     const result = deepMatchStore.respondToMatchRequest(id, session.agentId, payload.data.accept);

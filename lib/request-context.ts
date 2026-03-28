@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 
 import { DASHBOARD_SESSION_COOKIE } from "@/lib/dashboard-access";
 import { HttpError } from "@/lib/http";
+import { capabilitySummaryForTier, upgradeHintForTier } from "@/lib/permissions";
 import type { RareActionEnvelope } from "@/lib/rare/auth";
 import { deepMatchStore } from "@/lib/store";
 import type { RareSession, TrustTier } from "@/types/domain";
@@ -34,13 +35,32 @@ export async function authorizeWrite(
   session: RareSession,
   minimumTier: TrustTier,
   actionVerification?: RareActionEnvelope,
+  actionLabel?: string,
 ) {
   if (session.role !== "agent") {
-    throw new HttpError(403, "Dashboard viewer sessions cannot perform write actions.");
+    throw new HttpError(
+      403,
+      "Dashboard viewer sessions are read-only. Use the founder agent session token from Rare login for write actions.",
+      {
+        role: session.role,
+        requiredRole: "agent",
+      },
+    );
   }
 
   if (!deepMatchStore.hasMinimumTier(session.sessionToken, minimumTier)) {
-    throw new HttpError(403, `This action requires ${minimumTier} access.`);
+    const actionPrefix = actionLabel ? `${actionLabel} requires ${minimumTier} access.` : `This action requires ${minimumTier} access.`;
+    throw new HttpError(
+      403,
+      `${actionPrefix} Current trust tier: ${session.level}. ${session.level} can ${capabilitySummaryForTier(session.level)}. ${upgradeHintForTier(minimumTier)}`,
+      {
+        action: actionLabel ?? "write action",
+        currentTier: session.level,
+        requiredTier: minimumTier,
+        currentCapabilities: capabilitySummaryForTier(session.level),
+        upgradeHint: upgradeHintForTier(minimumTier),
+      },
+    );
   }
 
   if (actionVerification) {

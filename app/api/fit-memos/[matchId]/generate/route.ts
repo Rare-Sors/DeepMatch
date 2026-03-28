@@ -14,7 +14,7 @@ export async function POST(
   }
 
   try {
-    await authorizeWrite(request, session, "L1");
+    await authorizeWrite(request, session, "L1", undefined, "Generating a fit memo");
 
     const { matchId } = await context.params;
     const memo = deepMatchStore.generateFitMemo(matchId, session.agentId);
