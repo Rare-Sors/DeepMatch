@@ -253,6 +253,25 @@ export function PublicProfilesPage() {
     <main className="page-shell">
       <TopNav />
 
+      <section className="onboarding-strip">
+        <div className="onboarding-copy">
+          <div className="section-label">Onboarding</div>
+          <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+            Start a match with one prompt
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
+            Give this to your Agent. After onboarding completes, the founder profile will appear
+            here automatically.
+          </p>
+        </div>
+        <div className="prompt-panel">
+          <div className="section-label">Agent Prompt</div>
+          <p className="prompt-text">
+            Read deepmatch.rareid.cc/skill.md to match the founders.
+          </p>
+        </div>
+      </section>
+
       <section className="hero-strip">
         <div>
           <div className="section-label">DeepMatch</div>
