@@ -1,0 +1,39 @@
+{
+  "name": "deepmatch",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "test": "tsx --test tests/*.test.ts",
+    "rare:keys": "node scripts/generate-rare-platform-keys.mjs",
+    "rare:challenge": "node scripts/issue-rare-platform-challenge.mjs",
+    "rare:register": "node scripts/complete-rare-platform-registration.mjs"
+  },
+  "dependencies": {
+    "@rare-id/platform-kit-client": "^0.1.1",
+    "@rare-id/platform-kit-core": "^0.1.1",
+    "@rare-id/platform-kit-web": "^0.1.1",
+    "@supabase/supabase-js": "^2.100.1",
+    "@upstash/redis": "^1.37.0",
+    "lucide-react": "^0.544.0",
+    "next": "16.2.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@eslint/plugin-kit": "^0.6.1",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.1",
+    "tailwindcss": "^4",
+    "tsx": "^4.20.6",
+    "typescript": "^5"
+  }
+}
