@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { IBM_Plex_Mono, Manrope } from "next/font/google";
 import "./globals.css";
+import "@/lib/evomap/init"; // Auto-start EvoMap heartbeat service
 
 const manrope = Manrope({
   variable: "--font-manrope",
