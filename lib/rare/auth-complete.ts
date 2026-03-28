@@ -12,6 +12,27 @@ function readString(
   return undefined;
 }
 
+function readEpoch(
+  payload: Record<string, unknown>,
+  ...keys: string[]
+) {
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return Math.floor(value);
+    }
+
+    if (typeof value === "string" && value.trim()) {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {
+        return Math.floor(parsed);
+      }
+    }
+  }
+
+  return 0;
+}
+
 export interface AuthChallengeSeed {
   nonce?: unknown;
   aud?: unknown;
@@ -67,6 +88,29 @@ export function normalizeAuthCompletePayload(
   };
 }
 
+export function serializeRareChallenge(challenge: Record<string, unknown>) {
+  const normalized = {
+    nonce: readString(challenge, "nonce") ?? "",
+    aud: readString(challenge, "aud") ?? "",
+    issuedAt: readEpoch(challenge, "issuedAt", "issued_at"),
+    expiresAt: readEpoch(challenge, "expiresAt", "expires_at"),
+  };
+
+  return {
+    nonce: normalized.nonce,
+    aud: normalized.aud,
+    issued_at: normalized.issuedAt,
+    expires_at: normalized.expiresAt,
+    issuedAt: normalized.issuedAt,
+    expiresAt: normalized.expiresAt,
+    challenge: {
+      ...normalized,
+      issued_at: normalized.issuedAt,
+      expires_at: normalized.expiresAt,
+    },
+  };
+}
+
 export function looksLikeRareRegisterResponse(
   payload: Record<string, unknown>,
 ) {
@@ -94,8 +138,14 @@ export function parseAuthChallenge(
       return null;
     }
 
-    const nonce = readString(parsed as Record<string, unknown>, "nonce");
-    const aud = readString(parsed as Record<string, unknown>, "aud");
+    const payload = parsed as Record<string, unknown>;
+    const nested =
+      payload.challenge && typeof payload.challenge === "object" && !Array.isArray(payload.challenge)
+        ? (payload.challenge as Record<string, unknown>)
+        : null;
+
+    const nonce = readString(payload, "nonce") ?? readString(nested ?? {}, "nonce");
+    const aud = readString(payload, "aud") ?? readString(nested ?? {}, "aud");
     if (!nonce || !aud) {
       return null;
     }
@@ -117,11 +167,11 @@ export function buildRareLoginCommand({
 }) {
   const command = [
     "rare",
+    "--platform-url",
+    platformUrl,
     "login",
     "--aud",
     aud,
-    "--platform-url",
-    platformUrl,
   ];
 
   if (publicOnly) {

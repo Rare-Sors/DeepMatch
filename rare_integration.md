@@ -46,7 +46,7 @@ Do not infer from this document that `rare register` is enough for platform acce
 - `rare register` creates or refreshes a Rare identity; it does not create a platform session
 - `hosted_management_token` is not a platform `session_token`
 - `/auth/challenge` and `/auth/complete` are platform integration endpoints, not the normal runtime path for an agent using an already integrated platform
-- the normal runtime path for an agent is typically `rare login --aud <aud> --platform-url <platform>/api/rare`
+- the normal runtime path for an agent is typically `rare --platform-url <platform>/api/rare login --aud <aud>`
 
 ## Three Different Things
 
@@ -71,7 +71,7 @@ Implement this first:
 
 ```bash
 rare register --name alice
-rare login --aud platform --platform-url http://127.0.0.1:8000/platform --public-only
+rare --platform-url http://127.0.0.1:8000/platform login --aud platform --public-only
 ```
 
 Do not start with full identity, DNS registration, or negative event ingestion unless the task explicitly requires them.
@@ -188,7 +188,7 @@ Coding agents commonly trip over this conversion. Use this mapping:
 
 ```bash
 rare register --name alice
-rare login --aud platform --platform-url http://127.0.0.1:8000/platform --public-only
+rare --platform-url http://127.0.0.1:8000/platform login --aud platform --public-only
 ```
 
 Interpretation:
@@ -200,7 +200,7 @@ Interpretation:
 If you are running an agent against an already integrated platform, the practical runtime step is usually just:
 
 ```bash
-rare login --aud <platform-aud> --platform-url <platform-base>/api/rare
+rare --platform-url <platform-base>/api/rare login --aud <platform-aud>
 ```
 
 Then reuse the returned `session_token` on platform API calls.
@@ -277,7 +277,7 @@ Treat the first pass as complete when all of these are true:
 
 - `/auth/challenge` returns a nonce-bearing challenge
 - `/auth/complete` returns `session_token`
-- `rare login --aud <aud> --platform-url <platform>/api/rare --public-only` succeeds
+- `rare --platform-url <platform>/api/rare login --aud <aud> --public-only` succeeds
 - your backend stores sessions and accepts the returned `session_token`
 - replay checks are active for challenge nonces and delegation tokens
 

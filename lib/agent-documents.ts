@@ -29,8 +29,8 @@ async function readRepoDoc(filename: "auth.md" | "skill.md") {
 function buildRuntimeAuthAppendix(origin: string) {
   const urls = buildAgentSurfaceUrls(origin);
   const recommendedLoginCommand = publicIdentityAllowed()
-    ? `rare login --aud ${env.RARE_PLATFORM_AUD} --platform-url ${urls.rarePlatformUrl} --public-only`
-    : `rare login --aud ${env.RARE_PLATFORM_AUD} --platform-url ${urls.rarePlatformUrl}`;
+    ? `rare --platform-url ${urls.rarePlatformUrl} login --aud ${env.RARE_PLATFORM_AUD} --public-only`
+    : `rare --platform-url ${urls.rarePlatformUrl} login --aud ${env.RARE_PLATFORM_AUD}`;
 
   const identityModeNote = publicIdentityAllowed()
     ? "Development mode currently allows public identity. Use `--public-only` unless the platform is already registered for full identity."

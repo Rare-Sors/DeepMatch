@@ -7,6 +7,7 @@ import {
   looksLikeRareRegisterResponse,
   normalizeAuthCompletePayload,
   parseAuthChallenge,
+  serializeRareChallenge,
 } from "../lib/rare/auth-complete.ts";
 
 test("normalizeAuthCompletePayload accepts snake_case login payloads", () => {
@@ -73,6 +74,52 @@ test("parseAuthChallenge extracts aud and nonce from challenge JSON", () => {
   assert.equal(parseAuthChallenge(""), null);
 });
 
+test("parseAuthChallenge accepts nested challenge payloads", () => {
+  assert.deepEqual(
+    parseAuthChallenge(
+      JSON.stringify({
+        challenge: {
+          nonce: "nonce_456",
+          aud: "deepmatch",
+          issuedAt: 1,
+          expiresAt: 2,
+        },
+      }),
+    ),
+    {
+      nonce: "nonce_456",
+      aud: "deepmatch",
+    },
+  );
+});
+
+test("serializeRareChallenge returns CLI-compatible top-level fields and legacy nested challenge", () => {
+  assert.deepEqual(
+    serializeRareChallenge({
+      nonce: "nonce_123",
+      aud: "deepmatch",
+      issuedAt: 101,
+      expiresAt: 202,
+    }),
+    {
+      nonce: "nonce_123",
+      aud: "deepmatch",
+      issued_at: 101,
+      expires_at: 202,
+      issuedAt: 101,
+      expiresAt: 202,
+      challenge: {
+        nonce: "nonce_123",
+        aud: "deepmatch",
+        issuedAt: 101,
+        expiresAt: 202,
+        issued_at: 101,
+        expires_at: 202,
+      },
+    },
+  );
+});
+
 test("buildRareLoginCommand generates platform login command", () => {
   assert.equal(
     buildRareLoginCommand({
@@ -80,6 +127,6 @@ test("buildRareLoginCommand generates platform login command", () => {
       platformUrl: "http://127.0.0.1:3000/api/rare",
       publicOnly: true,
     }),
-    "rare login --aud deepmatch --platform-url http://127.0.0.1:3000/api/rare --public-only",
+    "rare --platform-url http://127.0.0.1:3000/api/rare login --aud deepmatch --public-only",
   );
 });

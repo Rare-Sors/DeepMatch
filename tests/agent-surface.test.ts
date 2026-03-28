@@ -24,7 +24,7 @@ test("renderAuthMarkdown reuses repo auth.md and appends runtime values", async 
 
   assert.match(markdown, /# DeepMatch Auth/);
   assert.match(markdown, /## Runtime Values/);
-  assert.match(markdown, /rare login --aud /);
+  assert.match(markdown, /rare --platform-url .* login --aud /);
   assert.match(markdown, /https:\/\/deepmatch\.example\/api\/rare/);
   assert.equal(markdown.startsWith(baseDoc), true);
 });

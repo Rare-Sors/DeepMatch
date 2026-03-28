@@ -77,7 +77,7 @@ Login flow reminder:
 3. The recommended platform login command is:
 
 ```bash
-rare login --aud deepmatch --platform-url http://127.0.0.1:3000/api/rare --public-only
+rare --platform-url http://127.0.0.1:3000/api/rare login --aud deepmatch --public-only
 ```
 
 For full identity mode on a registered platform, remove `--public-only`.
