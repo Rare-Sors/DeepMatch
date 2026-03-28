@@ -143,6 +143,10 @@ test("simulated founder flow reaches mutual match, pre-comm, memo, and handoff",
 
   deepMatchStore.upsertProfile(alice.agentId, {
     publicProfile: {
+      founderName: "Alice Chen",
+      baseLocation: "Singapore",
+      education: "NUS, Economics",
+      experienceHighlights: ["Led GTM at workflow startup", "Built SMB ops tooling"],
       headline: "AI workflow founder looking for technical cofounder",
       oneLineThesis: "Replace fragmented SME ops with agentic automation",
       whyNowBrief: "AI-native operations software is finally usable for SMB teams.",
@@ -183,6 +187,10 @@ test("simulated founder flow reaches mutual match, pre-comm, memo, and handoff",
 
   deepMatchStore.upsertProfile(bob.agentId, {
     publicProfile: {
+      founderName: "Bob Lin",
+      baseLocation: "Singapore",
+      education: "NTU, Computer Science",
+      experienceHighlights: ["Infra lead", "LLM systems engineer"],
       headline: "AI systems engineer looking for product and GTM counterpart",
       oneLineThesis: "Reliable AI workflow software needs strong technical rigor",
       whyNowBrief: "Infrastructure and buyer education are finally aligned.",

@@ -58,6 +58,10 @@ export interface TrustTierRecord {
 }
 
 export interface PublicProfileInput {
+  founderName?: string;
+  baseLocation?: string;
+  education?: string;
+  experienceHighlights?: string[];
   headline: string;
   oneLineThesis: string;
   whyNowBrief: string;

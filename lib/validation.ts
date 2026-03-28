@@ -58,6 +58,10 @@ export const authCompleteSchema = z.object({
 export const profileUpsertSchema = z.object({
   actionVerification: actionEnvelopeSchema,
   publicProfile: z.object({
+    founderName: z.string().trim().default(""),
+    baseLocation: z.string().trim().default(""),
+    education: z.string().trim().default(""),
+    experienceHighlights: stringArray,
     headline: z.string().trim().min(1),
     oneLineThesis: z.string().trim().min(1),
     whyNowBrief: z.string().trim().min(1),

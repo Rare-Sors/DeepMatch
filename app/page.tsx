@@ -1,5 +1,5 @@
-import { DeepMatchDashboard } from "@/components/deepmatch-dashboard";
+import { PublicProfilesPage } from "@/components/public-profiles-page";
 
 export default function Home() {
-  return <DeepMatchDashboard />;
+  return <PublicProfilesPage />;
 }

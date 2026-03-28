@@ -19,6 +19,10 @@ create table if not exists trust_tiers (
 
 create table if not exists profiles_public (
   agent_id text primary key references agents(agent_id) on delete cascade,
+  founder_name text not null default '',
+  base_location text not null default '',
+  education text not null default '',
+  experience_highlights jsonb not null default '[]'::jsonb,
   headline text not null,
   one_line_thesis text not null,
   why_now_brief text not null,
