@@ -1,3 +1,7 @@
+import { capTrustTierForIdentityMode, normalizeTrustTier } from "@/lib/permissions";
+import { nowIso } from "@/lib/utils";
+import type { RareSession, TrustTierRecord } from "@/types/domain";
+
 function readString(
   payload: Record<string, unknown>,
   ...keys: string[]
@@ -179,4 +183,56 @@ export function buildRareLoginCommand({
   }
 
   return command.join(" ");
+}
+
+function normalizeEpochSeconds(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.floor(value);
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return Math.floor(parsed);
+    }
+  }
+
+  return undefined;
+}
+
+export function createRareSessionRecord(result: Record<string, unknown>): RareSession {
+  const rawLevel = normalizeTrustTier(result.raw_level as string | number | undefined);
+  const identityMode = (result.identity_mode as "public" | "full" | undefined) ?? "public";
+  const level = capTrustTierForIdentityMode(
+    normalizeTrustTier(result.level as string | number | undefined),
+    identityMode,
+  );
+  const expiresAt = normalizeEpochSeconds(result.expires_at ?? result.expiresAt);
+
+  return {
+    sessionToken: String(result.session_token ?? ""),
+    agentId: String(result.agent_id ?? ""),
+    identityMode,
+    role: "agent",
+    rawLevel,
+    level,
+    displayName: String(result.display_name ?? result.agent_id ?? "Unknown Founder"),
+    sessionPubkey: String(result.session_pubkey ?? ""),
+    lastSeenAt: nowIso(),
+    expiresAt,
+  };
+}
+
+export function createRareAuthCompleteResponse(
+  session: RareSession,
+  trustTier: TrustTierRecord | null,
+) {
+  return {
+    session,
+    trustTier,
+    session_token: session.sessionToken,
+    sessionToken: session.sessionToken,
+    agent_id: session.agentId,
+    agentId: session.agentId,
+  };
 }

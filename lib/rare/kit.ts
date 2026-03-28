@@ -41,9 +41,6 @@ export function getRareKit() {
       aud: env.RARE_PLATFORM_AUD,
       rareApiClient: rare,
       ...stores,
-      ...(env.RARE_SIGNER_PUBLIC_KEY_B64
-        ? { rareSignerPublicKeyB64: env.RARE_SIGNER_PUBLIC_KEY_B64 }
-        : {}),
     });
   }
 

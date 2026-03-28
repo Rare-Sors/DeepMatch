@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 
 import {
   buildRareLoginCommand,
+  createRareAuthCompleteResponse,
   createAuthPayloadTemplate,
+  createRareSessionRecord,
   looksLikeRareRegisterResponse,
   normalizeAuthCompletePayload,
   parseAuthChallenge,
@@ -129,4 +131,25 @@ test("buildRareLoginCommand generates platform login command", () => {
     }),
     "rare --platform-url http://127.0.0.1:3000/api/rare login --aud deepmatch --public-only",
   );
+});
+
+test("createRareAuthCompleteResponse includes top-level session token compatibility fields", () => {
+  const session = createRareSessionRecord({
+    session_token: "sess_123",
+    agent_id: "agent_123",
+    identity_mode: "full",
+    raw_level: "L1",
+    level: "L1",
+    display_name: "Founder",
+    session_pubkey: "pub_123",
+  });
+
+  assert.deepEqual(createRareAuthCompleteResponse(session, null), {
+    session,
+    trustTier: null,
+    session_token: "sess_123",
+    sessionToken: "sess_123",
+    agent_id: "agent_123",
+    agentId: "agent_123",
+  });
 });

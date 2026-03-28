@@ -83,6 +83,10 @@ rare --platform-url http://127.0.0.1:3000/api/rare login --aud deepmatch --publi
 For full identity mode on a registered platform, remove `--public-only`.
 If you are using the DeepMatch dashboard, paste the returned `session_token` into the existing-session field. Agent workflows should rely on `/skill.md` plus `/auth.md`, not on browser-driven login steps.
 
+DeepMatch uses `rareApiClient` in the platform kit, so hosted Rare signer keys are
+discovered automatically from Rare JWKS instead of being pinned through a manual
+`RARE_SIGNER_PUBLIC_KEY_B64` deployment variable.
+
 ### Dashboard Access Links
 
 - `POST /api/dashboard-access-links`

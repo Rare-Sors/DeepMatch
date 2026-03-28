@@ -1,9 +1,6 @@
-import { capTrustTierForIdentityMode, normalizeTrustTier } from "@/lib/permissions";
 import { env } from "@/lib/env";
 import { getRareKit } from "@/lib/rare/kit";
 import { createTrustTierSnapshot } from "@/lib/trust-tier";
-import { nowIso } from "@/lib/utils";
-import type { RareSession } from "@/types/domain";
 
 export interface RareActionEnvelope {
   action: string;
@@ -35,44 +32,6 @@ export async function verifyRareAction(sessionToken: string, envelope: RareActio
     expiresAt: envelope.expiresAt,
     signatureBySession: envelope.signatureBySession,
   } as never);
-}
-
-function normalizeEpochSeconds(value: unknown) {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return Math.floor(value);
-  }
-
-  if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) {
-      return Math.floor(parsed);
-    }
-  }
-
-  return undefined;
-}
-
-export function createRareSessionRecord(result: Record<string, unknown>): RareSession {
-  const rawLevel = normalizeTrustTier(result.raw_level as string | number | undefined);
-  const identityMode = (result.identity_mode as "public" | "full" | undefined) ?? "public";
-  const level = capTrustTierForIdentityMode(
-    normalizeTrustTier(result.level as string | number | undefined),
-    identityMode,
-  );
-  const expiresAt = normalizeEpochSeconds(result.expires_at ?? result.expiresAt);
-
-  return {
-    sessionToken: String(result.session_token ?? ""),
-    agentId: String(result.agent_id ?? ""),
-    identityMode,
-    role: "agent",
-    rawLevel,
-    level,
-    displayName: String(result.display_name ?? result.agent_id ?? "Unknown Founder"),
-    sessionPubkey: String(result.session_pubkey ?? ""),
-    lastSeenAt: nowIso(),
-    expiresAt,
-  };
 }
 
 export { createTrustTierSnapshot };

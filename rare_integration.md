@@ -83,7 +83,7 @@ Start with public login first. It gives you local verification, session handling
 ### 1) Install the SDK
 
 ```bash
-pnpm add @rare-id/platform-kit-core @rare-id/platform-kit-client @rare-id/platform-kit-web
+pnpm add @rare-id/platform-kit-core@0.1.1 @rare-id/platform-kit-client@0.1.2 @rare-id/platform-kit-web@0.1.2
 ```
 
 ### 2) Configure the kit
@@ -107,9 +107,6 @@ const kit = createRarePlatformKit({
   challengeStore: new InMemoryChallengeStore(),
   replayStore: new InMemoryReplayStore(),
   sessionStore: new InMemorySessionStore(),
-  // Optional override. When rareApiClient is configured, the kit can
-  // auto-discover the hosted delegation signer from Rare JWKS.
-  // rareSignerPublicKeyB64: "<rare signer Ed25519 public x>",
 });
 ```
 
@@ -266,12 +263,11 @@ Every platform integration needs:
 - a replay store with atomic claim semantics
 - a session store for issued platform sessions
 
-Hosted-signer delegations require the Rare signer public key:
+Hosted-signer delegations require the Rare signer public key.
 
-- `rareSignerPublicKeyB64`
-
-If `rareApiClient` is configured, the TypeScript kit can auto-discover this key
-from `GET /.well-known/rare-keys.json`.
+If `rareApiClient` is configured, the current TypeScript kit can auto-discover it
+from `GET /.well-known/rare-keys.json`. That is the recommended setup because it
+avoids stale manual signer-key configuration.
 
 Set `rareSignerPublicKeyB64` explicitly only when:
 

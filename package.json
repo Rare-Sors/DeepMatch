@@ -14,9 +14,9 @@
     "rare:register": "node scripts/complete-rare-platform-registration.mjs"
   },
   "dependencies": {
-    "@rare-id/platform-kit-client": "^0.1.1",
+    "@rare-id/platform-kit-client": "^0.1.2",
     "@rare-id/platform-kit-core": "^0.1.1",
-    "@rare-id/platform-kit-web": "^0.1.1",
+    "@rare-id/platform-kit-web": "^0.1.2",
     "@supabase/supabase-js": "^2.100.1",
     "@upstash/redis": "^1.37.0",
     "lucide-react": "^0.544.0",

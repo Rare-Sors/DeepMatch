@@ -1,10 +1,12 @@
 import { authCompleteSchema } from "@/lib/validation";
 import { attachDashboardSessionCookie } from "@/lib/dashboard-access";
 import {
+  createRareAuthCompleteResponse,
+  createRareSessionRecord,
   looksLikeRareRegisterResponse,
   normalizeAuthCompletePayload,
 } from "@/lib/rare/auth-complete";
-import { completeRareAuth, createRareSessionRecord } from "@/lib/rare/auth";
+import { completeRareAuth } from "@/lib/rare/auth";
 import { ok, badRequest, forbidden, serverError } from "@/lib/http";
 import { publicIdentityAllowed } from "@/lib/env";
 import { deepMatchStore } from "@/lib/store";
@@ -45,11 +47,9 @@ export async function POST(request: Request) {
     }
 
     deepMatchStore.upsertSession(session);
+    const trustTier = deepMatchStore.getTrustTier(session.agentId);
 
-    const response = ok({
-      session,
-      trustTier: deepMatchStore.getTrustTier(session.agentId),
-    });
+    const response = ok(createRareAuthCompleteResponse(session, trustTier));
 
     return attachDashboardSessionCookie(response, session.sessionToken);
   } catch (error) {
