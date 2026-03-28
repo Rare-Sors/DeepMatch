@@ -1,0 +1,427 @@
+import { buildFitMemo } from "@/lib/precomm/fit-memo";
+import { capTrustTierForIdentityMode, dailyMatchQuotaForTier, hasTier, priorityRankForTier } from "@/lib/permissions";
+import { getSuggestedMatchingNextStep, shouldCreateMutualMatch } from "@/lib/matching/state-machine";
+import { createTrustTierSnapshot } from "@/lib/trust-tier";
+import { createId, nowIso } from "@/lib/utils";
+import type {
+  AgentRecord,
+  DetailProfile,
+  DetailProfileInput,
+  FitMemo,
+  HandoffRecord,
+  MatchInbox,
+  MatchRecord,
+  MatchRequest,
+  PreCommunicationMessage,
+  ProfileUpsertInput,
+  PublicProfile,
+  PublicProfileInput,
+  RareSession,
+  TrustTierRecord,
+} from "@/types/domain";
+
+interface MemoryStoreState {
+  sessions: Map<string, RareSession>;
+  agents: Map<string, AgentRecord>;
+  trustTiers: Map<string, TrustTierRecord>;
+  publicProfiles: Map<string, PublicProfile>;
+  detailProfiles: Map<string, DetailProfile>;
+  matchRequests: Map<string, MatchRequest>;
+  matches: Map<string, MatchRecord>;
+  preCommunications: Map<string, PreCommunicationMessage[]>;
+  fitMemos: Map<string, FitMemo>;
+  handoffs: Map<string, HandoffRecord>;
+}
+
+declare global {
+  var __deepmatchStore: MemoryStoreState | undefined;
+}
+
+function getState(): MemoryStoreState {
+  if (!globalThis.__deepmatchStore) {
+    globalThis.__deepmatchStore = {
+      sessions: new Map(),
+      agents: new Map(),
+      trustTiers: new Map(),
+      publicProfiles: new Map(),
+      detailProfiles: new Map(),
+      matchRequests: new Map(),
+      matches: new Map(),
+      preCommunications: new Map(),
+      fitMemos: new Map(),
+      handoffs: new Map(),
+    };
+  }
+
+  return globalThis.__deepmatchStore;
+}
+
+function createPublicProfile(agentId: string, level: string, input: PublicProfileInput): PublicProfile {
+  return {
+    agentId,
+    ...input,
+    trustTier: level as PublicProfile["trustTier"],
+    profileFreshness: nowIso(),
+  };
+}
+
+function createDetailProfile(agentId: string, input: DetailProfileInput): DetailProfile {
+  return {
+    agentId,
+    ...input,
+  };
+}
+
+function findReverseRequest(requesterAgentId: string, targetAgentId: string) {
+  return [...getState().matchRequests.values()].find(
+    (request) =>
+      request.requesterAgentId === targetAgentId &&
+      request.targetAgentId === requesterAgentId,
+  );
+}
+
+function findMatchByParticipants(agentA: string, agentB: string) {
+  return [...getState().matches.values()].find((match) => {
+    const participants = new Set(match.participantAgentIds);
+    return participants.has(agentA) && participants.has(agentB);
+  });
+}
+
+function createMutualMatch(agentA: string, agentB: string) {
+  const existing = findMatchByParticipants(agentA, agentB);
+  if (existing) {
+    return existing;
+  }
+
+  const now = nowIso();
+  const match: MatchRecord = {
+    id: createId("match"),
+    participantAgentIds: [agentA, agentB].sort() as [string, string],
+    matchStatus: "active",
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  getState().matches.set(match.id, match);
+  return match;
+}
+
+export const deepMatchStore = {
+  upsertSession(session: RareSession) {
+    const state = getState();
+    const normalizedLevel = capTrustTierForIdentityMode(session.level, session.identityMode);
+    const normalizedSession: RareSession = {
+      ...session,
+      level: normalizedLevel,
+      lastSeenAt: nowIso(),
+    };
+
+    state.sessions.set(normalizedSession.sessionToken, normalizedSession);
+    state.agents.set(normalizedSession.agentId, {
+      agentId: normalizedSession.agentId,
+      displayName: normalizedSession.displayName,
+      identityMode: normalizedSession.identityMode,
+      rawLevel: normalizedSession.rawLevel,
+      effectiveLevel: normalizedSession.level,
+      sessionPubkey: normalizedSession.sessionPubkey,
+      lastSeenAt: normalizedSession.lastSeenAt,
+    });
+
+    const snapshot = createTrustTierSnapshot(normalizedSession);
+    state.trustTiers.set(snapshot.agentId, snapshot);
+    return normalizedSession;
+  },
+
+  getSession(sessionToken: string) {
+    return getState().sessions.get(sessionToken);
+  },
+
+  upsertProfile(agentId: string, input: ProfileUpsertInput) {
+    const state = getState();
+    const session = [...state.sessions.values()].find((value) => value.agentId === agentId);
+    const level = session?.level ?? "L0";
+    const publicProfile = createPublicProfile(agentId, level, input.publicProfile);
+    const detailProfile = createDetailProfile(agentId, input.detailProfile);
+
+    state.publicProfiles.set(agentId, publicProfile);
+    state.detailProfiles.set(agentId, detailProfile);
+
+    return {
+      publicProfile,
+      detailProfile,
+    };
+  },
+
+  listPublicProfiles() {
+    return [...getState().publicProfiles.values()].sort((left, right) =>
+      right.profileFreshness.localeCompare(left.profileFreshness),
+    );
+  },
+
+  getPublicProfile(agentId: string) {
+    return getState().publicProfiles.get(agentId) ?? null;
+  },
+
+  getDetailProfilesForMatch(matchId: string, viewerAgentId: string) {
+    const match = getState().matches.get(matchId);
+    if (!match) {
+      return null;
+    }
+
+    if (!match.participantAgentIds.includes(viewerAgentId)) {
+      return null;
+    }
+
+    return {
+      match,
+      profiles: match.participantAgentIds
+        .map((agentId) => getState().detailProfiles.get(agentId))
+        .filter(Boolean) as DetailProfile[],
+    };
+  },
+
+  createMatchRequest(
+    requesterAgentId: string,
+    payload: Omit<MatchRequest, "id" | "requesterAgentId" | "status" | "createdAt" | "updatedAt">,
+  ) {
+    const state = getState();
+    const now = nowIso();
+    const existing = [...state.matchRequests.values()].find(
+      (request) =>
+        request.requesterAgentId === requesterAgentId &&
+        request.targetAgentId === payload.targetAgentId &&
+        request.status !== "expired",
+    );
+
+    if (existing) {
+      return { request: existing, match: findMatchByParticipants(requesterAgentId, payload.targetAgentId) };
+    }
+
+    const request: MatchRequest = {
+      id: createId("mreq"),
+      requesterAgentId,
+      targetAgentId: payload.targetAgentId,
+      status: "pending",
+      justification: payload.justification,
+      attractivePoints: payload.attractivePoints,
+      complementSummary: payload.complementSummary,
+      classification: payload.classification,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    state.matchRequests.set(request.id, request);
+
+    const reverseRequest = findReverseRequest(requesterAgentId, payload.targetAgentId);
+    if (shouldCreateMutualMatch(request, reverseRequest)) {
+      request.status = "accepted";
+      request.updatedAt = nowIso();
+      if (reverseRequest) {
+        reverseRequest.status = "accepted";
+        reverseRequest.updatedAt = nowIso();
+        state.matchRequests.set(reverseRequest.id, reverseRequest);
+      }
+
+      return {
+        request,
+        match: createMutualMatch(requesterAgentId, payload.targetAgentId),
+      };
+    }
+
+    return { request, match: null };
+  },
+
+  respondToMatchRequest(requestId: string, responderAgentId: string, accept: boolean) {
+    const state = getState();
+    const request = state.matchRequests.get(requestId);
+    if (!request || request.targetAgentId !== responderAgentId) {
+      return null;
+    }
+
+    request.status = accept ? "accepted" : "declined";
+    request.updatedAt = nowIso();
+    state.matchRequests.set(request.id, request);
+
+    return {
+      request,
+      match: accept ? createMutualMatch(request.requesterAgentId, request.targetAgentId) : null,
+    };
+  },
+
+  listInbox(agentId: string): MatchInbox {
+    const state = getState();
+    const incomingRequests = [...state.matchRequests.values()].filter(
+      (request) => request.targetAgentId === agentId,
+    );
+    const outgoingRequests = [...state.matchRequests.values()].filter(
+      (request) => request.requesterAgentId === agentId,
+    );
+    const matches = [...state.matches.values()].filter((match) =>
+      match.participantAgentIds.includes(agentId),
+    );
+    const matchIds = new Set(matches.map((match) => match.id));
+    const nextStep = getSuggestedMatchingNextStep({
+      incomingRequests,
+      matches,
+    });
+
+    return {
+      suggestedNextStep: nextStep.step,
+      nextStepReason: nextStep.reason,
+      incomingRequests,
+      outgoingRequests,
+      matches,
+      fitMemos: [...state.fitMemos.values()].filter((memo) => matchIds.has(memo.matchId)),
+      handoffs: [...state.handoffs.values()].filter((handoff) => matchIds.has(handoff.matchId)),
+    };
+  },
+
+  addPreCommunicationMessage(
+    matchId: string,
+    speakerAgentId: string,
+    topic: PreCommunicationMessage["topic"],
+    messageType: PreCommunicationMessage["messageType"],
+    content: string,
+  ) {
+    const match = getState().matches.get(matchId);
+    if (!match || !match.participantAgentIds.includes(speakerAgentId)) {
+      return null;
+    }
+
+    const messages = getState().preCommunications.get(matchId) ?? [];
+    const message: PreCommunicationMessage = {
+      id: createId("msg"),
+      matchId,
+      speakerAgentId,
+      topic,
+      messageType,
+      content,
+      createdAt: nowIso(),
+    };
+
+    messages.push(message);
+    getState().preCommunications.set(matchId, messages);
+    match.updatedAt = nowIso();
+    getState().matches.set(match.id, match);
+
+    return {
+      match,
+      message,
+      messages,
+    };
+  },
+
+  listPreCommunicationMessages(matchId: string, viewerAgentId: string) {
+    const match = getState().matches.get(matchId);
+    if (!match || !match.participantAgentIds.includes(viewerAgentId)) {
+      return null;
+    }
+
+    return getState().preCommunications.get(matchId) ?? [];
+  },
+
+  generateFitMemo(matchId: string, viewerAgentId: string) {
+    const match = getState().matches.get(matchId);
+    if (!match || !match.participantAgentIds.includes(viewerAgentId)) {
+      return null;
+    }
+
+    const memoBase = buildFitMemo(match, getState().preCommunications.get(matchId) ?? []);
+    const memo: FitMemo = {
+      id: createId("memo"),
+      generatedAt: nowIso(),
+      ...memoBase,
+    };
+
+    getState().fitMemos.set(matchId, memo);
+    if (memo.humanMeetingRecommendation) {
+      match.matchStatus = "handoff_ready";
+      match.updatedAt = nowIso();
+      getState().matches.set(match.id, match);
+    }
+
+    return memo;
+  },
+
+  unlockHandoff(matchId: string, viewerAgentId: string) {
+    const match = getState().matches.get(matchId);
+    const memo = getState().fitMemos.get(matchId);
+
+    if (!match || !memo || !match.participantAgentIds.includes(viewerAgentId)) {
+      return null;
+    }
+
+    if (!memo.humanMeetingRecommendation) {
+      return null;
+    }
+
+    const existing = getState().handoffs.get(matchId);
+    if (existing) {
+      return existing;
+    }
+
+    const handoff: HandoffRecord = {
+      id: createId("handoff"),
+      matchId,
+      contactExchangeStatus: "ready",
+      contactChannels: [
+        "Mutually agreed email exchange",
+        "External calendar link sharing",
+      ],
+      introTemplate:
+        "DeepMatch intro: both founders have completed structured pre-communication and should use the first meeting to validate conviction, role split, and trial scope.",
+      priorityTopics: [
+        "Decision rights and ownership boundaries",
+        "Full-time timing and commitment window",
+        "Trial project structure or first 30-day plan",
+      ],
+      unlockedAt: nowIso(),
+    };
+
+    getState().handoffs.set(matchId, handoff);
+    match.matchStatus = "handoff_ready";
+    match.updatedAt = nowIso();
+    getState().matches.set(match.id, match);
+
+    return handoff;
+  },
+
+  hasMinimumTier(sessionToken: string, minimumTier: RareSession["level"]) {
+    const session = this.getSession(sessionToken);
+    return Boolean(session && hasTier(session.level, minimumTier));
+  },
+
+  getTrustTier(agentId: string) {
+    return getState().trustTiers.get(agentId) ?? null;
+  },
+
+  syncAgentLevel(agentId: string, level: RareSession["level"]) {
+    const session = [...getState().sessions.values()].find((value) => value.agentId === agentId);
+    if (!session) {
+      return null;
+    }
+
+    session.level = level;
+    session.lastSeenAt = nowIso();
+    getState().sessions.set(session.sessionToken, session);
+
+    const trustTier: TrustTierRecord = {
+      agentId,
+      rawLevel: session.rawLevel,
+      effectiveLevel: level,
+      priorityRank: priorityRankForTier(level),
+      dailyMatchQuota: dailyMatchQuotaForTier(level),
+      updatedAt: nowIso(),
+    };
+    getState().trustTiers.set(agentId, trustTier);
+
+    const publicProfile = getState().publicProfiles.get(agentId);
+    if (publicProfile) {
+      publicProfile.trustTier = level;
+      publicProfile.profileFreshness = nowIso();
+      getState().publicProfiles.set(agentId, publicProfile);
+    }
+
+    return trustTier;
+  },
+};
