@@ -1,4 +1,5 @@
 import { authCompleteSchema } from "@/lib/validation";
+import { attachDashboardSessionCookie } from "@/lib/dashboard-access";
 import { completeRareAuth, createRareSessionRecord } from "@/lib/rare/auth";
 import { ok, badRequest, forbidden, serverError } from "@/lib/http";
 import { publicIdentityAllowed } from "@/lib/env";
@@ -28,10 +29,12 @@ export async function POST(request: Request) {
 
     deepMatchStore.upsertSession(session);
 
-    return ok({
+    const response = ok({
       session,
       trustTier: deepMatchStore.getTrustTier(session.agentId),
     });
+
+    return attachDashboardSessionCookie(response, session.sessionToken);
   } catch (error) {
     return serverError("Failed to complete Rare auth.", {
       message: error instanceof Error ? error.message : "Unknown error",

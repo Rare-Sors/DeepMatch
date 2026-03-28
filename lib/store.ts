@@ -6,6 +6,7 @@ import { createTrustTierSnapshot } from "@/lib/trust-tier";
 import { createId, nowIso } from "@/lib/utils";
 import type {
   AgentRecord,
+  DashboardAccessLink,
   DetailProfile,
   DetailProfileInput,
   FitMemo,
@@ -25,6 +26,10 @@ interface MemoryStoreState {
   sessions: Map<string, RareSession>;
   agents: Map<string, AgentRecord>;
   trustTiers: Map<string, TrustTierRecord>;
+  dashboardAccessLinks: Map<
+    string,
+    DashboardAccessLink
+  >;
   publicProfiles: Map<string, PublicProfile>;
   detailProfiles: Map<string, DetailProfile>;
   matchRequests: Map<string, MatchRequest>;
@@ -44,6 +49,7 @@ function getState(): MemoryStoreState {
       sessions: new Map(),
       agents: new Map(),
       trustTiers: new Map(),
+      dashboardAccessLinks: new Map(),
       publicProfiles: new Map(),
       detailProfiles: new Map(),
       matchRequests: new Map(),
@@ -59,6 +65,35 @@ function getState(): MemoryStoreState {
 
 function isSessionExpired(session: RareSession) {
   return typeof session.expiresAt === "number" && session.expiresAt <= Math.floor(Date.now() / 1000);
+}
+
+function listValidDashboardAccessLinks(agentId: string) {
+  const now = Math.floor(Date.now() / 1000);
+  const state = getState();
+  const links: DashboardAccessLink[] = [];
+
+  for (const [token, link] of state.dashboardAccessLinks.entries()) {
+    if (link.agentId !== agentId) {
+      continue;
+    }
+
+    if (link.expiresAt <= now) {
+      state.dashboardAccessLinks.delete(token);
+      continue;
+    }
+
+    links.push(link);
+  }
+
+  return links.sort((left, right) => right.expiresAt - left.expiresAt);
+}
+
+function getLatestViewerSession(agentId: string) {
+  const sessions = [...getState().sessions.values()]
+    .filter((session) => session.agentId === agentId && session.role === "viewer" && !isSessionExpired(session))
+    .sort((left, right) => (right.expiresAt ?? 0) - (left.expiresAt ?? 0));
+
+  return sessions[0] ?? null;
 }
 
 function getAgentEffectiveLevel(agentId: string) {
@@ -145,13 +180,17 @@ export const deepMatchStore = {
     };
 
     state.sessions.set(normalizedSession.sessionToken, normalizedSession);
+    const existingAgent = state.agents.get(normalizedSession.agentId);
     state.agents.set(normalizedSession.agentId, {
       agentId: normalizedSession.agentId,
       displayName: normalizedSession.displayName,
       identityMode: normalizedSession.identityMode,
       rawLevel: normalizedSession.rawLevel,
       effectiveLevel: normalizedSession.level,
-      sessionPubkey: normalizedSession.sessionPubkey,
+      sessionPubkey:
+        normalizedSession.role === "viewer"
+          ? existingAgent?.sessionPubkey ?? normalizedSession.sessionPubkey
+          : normalizedSession.sessionPubkey,
       lastSeenAt: normalizedSession.lastSeenAt,
     });
 
@@ -173,6 +212,115 @@ export const deepMatchStore = {
     }
 
     return session;
+  },
+
+  createDashboardAccessLink(agentId: string, expiresInSeconds: number) {
+    const state = getState();
+    if (!state.agents.has(agentId)) {
+      return null;
+    }
+
+    for (const link of listValidDashboardAccessLinks(agentId)) {
+      state.dashboardAccessLinks.delete(link.token);
+    }
+
+    const token = createId("dlink");
+    const record = {
+      token,
+      agentId,
+      createdAt: nowIso(),
+      expiresAt: Math.floor(Date.now() / 1000) + expiresInSeconds,
+    };
+
+    state.dashboardAccessLinks.set(token, record);
+    return record;
+  },
+
+  consumeDashboardAccessLink(token: string, sessionDurationSeconds: number) {
+    const state = getState();
+    const record = state.dashboardAccessLinks.get(token);
+    if (!record) {
+      return null;
+    }
+
+    if (record.expiresAt <= Math.floor(Date.now() / 1000)) {
+      state.dashboardAccessLinks.delete(token);
+      return null;
+    }
+
+    const agent = state.agents.get(record.agentId);
+    const trustTier = state.trustTiers.get(record.agentId);
+    if (!agent || !trustTier) {
+      state.dashboardAccessLinks.delete(token);
+      return null;
+    }
+
+    state.dashboardAccessLinks.delete(token);
+
+    return this.upsertSession({
+      sessionToken: createId("viewer"),
+      agentId: record.agentId,
+      identityMode: agent.identityMode,
+      role: "viewer",
+      rawLevel: trustTier.rawLevel,
+      level: trustTier.effectiveLevel,
+      displayName: agent.displayName,
+      sessionPubkey: "",
+      lastSeenAt: nowIso(),
+      expiresAt: Math.floor(Date.now() / 1000) + sessionDurationSeconds,
+    });
+  },
+
+  getLatestDashboardAccessLink(agentId: string) {
+    return listValidDashboardAccessLinks(agentId)[0] ?? null;
+  },
+
+  heartbeatDashboardAccess(
+    agentId: string,
+    {
+      accessLinkTtlSeconds,
+      refreshWindowSeconds,
+      sessionDurationSeconds,
+    }: {
+      accessLinkTtlSeconds: number;
+      refreshWindowSeconds: number;
+      sessionDurationSeconds: number;
+    },
+  ) {
+    const viewerSession = getLatestViewerSession(agentId);
+    const pendingLink = this.getLatestDashboardAccessLink(agentId);
+    const now = Math.floor(Date.now() / 1000);
+    const refreshAt = now + refreshWindowSeconds;
+
+    if (viewerSession?.expiresAt && viewerSession.expiresAt > refreshAt) {
+      return {
+        status: "not_due" as const,
+        viewerSession,
+        accessLink: null,
+        sessionDurationSeconds,
+      };
+    }
+
+    if (pendingLink) {
+      return {
+        status: "already_pending" as const,
+        viewerSession,
+        accessLink: pendingLink,
+        sessionDurationSeconds,
+      };
+    }
+
+    const accessLink = this.createDashboardAccessLink(agentId, accessLinkTtlSeconds);
+    if (!accessLink) {
+      return null;
+    }
+
+    return {
+      status: "created" as const,
+      viewerSession,
+      accessLink,
+      sessionDurationSeconds,
+    };
   },
 
   upsertProfile(agentId: string, input: ProfileUpsertInput) {

@@ -4,18 +4,7 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 import { TopNav } from "@/components/top-nav";
-import { demoInbox, demoProfiles, demoSession } from "@/lib/demo-data";
 import type { MatchInbox, PublicProfile, RareSession } from "@/types/domain";
-
-const SESSION_TOKEN_KEY = "deepmatch-session-token";
-
-function readSessionToken() {
-  if (typeof window === "undefined") {
-    return "";
-  }
-
-  return window.localStorage.getItem(SESSION_TOKEN_KEY) ?? "";
-}
 
 function findProfile(profiles: PublicProfile[], agentId: string) {
   return profiles.find((profile) => profile.agentId === agentId) ?? null;
@@ -42,46 +31,42 @@ function DashboardCard({
   );
 }
 
-export function DashboardPage() {
-  const [sessionToken] = useState(readSessionToken);
+export function DashboardPage({ accessState }: { accessState?: string }) {
   const [profiles, setProfiles] = useState<PublicProfile[]>([]);
   const [session, setSession] = useState<RareSession | null>(null);
   const [inbox, setInbox] = useState<MatchInbox | null>(null);
   const [status, setStatus] = useState("Loading dashboard...");
-  const [isDemo, setIsDemo] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
+      setStatus("Loading dashboard...");
+
       try {
-        const profilesResponse = await fetch("/api/profiles/public", { cache: "no-store" });
-        const profilesJson = await profilesResponse.json();
-        if (!profilesResponse.ok) {
-          throw new Error(profilesJson.error ?? "Failed to load profiles.");
-        }
+        const [profilesResponse, inboxResponse] = await Promise.all([
+          fetch("/api/profiles/public", { cache: "no-store" }),
+          fetch("/api/matches/inbox", { cache: "no-store" }),
+        ]);
 
-        const apiProfiles: PublicProfile[] = profilesJson.profiles ?? [];
         if (!cancelled) {
-          setProfiles(apiProfiles.length ? apiProfiles : demoProfiles);
+          if (profilesResponse.ok) {
+            const profilesJson = await profilesResponse.json();
+            setProfiles(profilesJson.profiles ?? []);
+          } else {
+            setProfiles([]);
+          }
         }
 
-        if (!sessionToken) {
+        if (inboxResponse.status === 401) {
           if (!cancelled) {
-            setSession(demoSession);
-            setInbox(demoInbox);
-            setIsDemo(true);
-            setStatus("Demo mode");
+            setSession(null);
+            setInbox(null);
+            setStatus("Access link required");
           }
           return;
         }
 
-        const inboxResponse = await fetch("/api/matches/inbox", {
-          cache: "no-store",
-          headers: {
-            "x-deepmatch-session-token": sessionToken,
-          },
-        });
         const inboxJson = await inboxResponse.json();
         if (!inboxResponse.ok) {
           throw new Error(inboxJson.error ?? "Failed to load dashboard.");
@@ -90,16 +75,13 @@ export function DashboardPage() {
         if (!cancelled) {
           setSession(inboxJson.session ?? null);
           setInbox(inboxJson.inbox ?? null);
-          setIsDemo(false);
-          setStatus("Live");
+          setStatus(inboxJson.session?.role === "viewer" ? "Viewer access" : "Agent session");
         }
       } catch {
         if (!cancelled) {
-          setProfiles(demoProfiles);
-          setSession(demoSession);
-          setInbox(demoInbox);
-          setIsDemo(true);
-          setStatus("Demo mode");
+          setSession(null);
+          setInbox(null);
+          setStatus("Dashboard unavailable");
         }
       }
     }
@@ -109,7 +91,7 @@ export function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [sessionToken]);
+  }, []);
 
   const ownProfile = useMemo(
     () => (session ? findProfile(profiles, session.agentId) : null),
@@ -137,7 +119,7 @@ export function DashboardPage() {
         <div className="flex flex-wrap items-center gap-2">
           <span className="status-pill">{status}</span>
           {session ? <span className="status-pill-accent">{session.level}</span> : null}
-          {isDemo ? <span className="status-pill">Sample data</span> : null}
+          {session ? <span className="status-pill">{session.role}</span> : null}
         </div>
       </section>
 
@@ -289,7 +271,27 @@ export function DashboardPage() {
         </div>
       ) : (
         <section className="panel-lg">
-          <EmptyState copy="Dashboard is only available for a founder with an active agent-issued session." />
+          <div className="space-y-4">
+            <div>
+              <div className="section-label">Agent-Issued Access</div>
+              <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+                This workspace opens from a private access link.
+              </h2>
+            </div>
+            <p className="max-w-2xl text-sm leading-6 text-[var(--muted)]">
+              Ask your Founder Agent for a fresh dashboard link. Opening it activates this browser
+              for 7 days, then you will need a new link.
+            </p>
+            <p className="max-w-2xl text-sm leading-6 text-[var(--muted)]">
+              Do not forward the link before you use it. Whoever opens it first gets access to this
+              dashboard session.
+            </p>
+            {accessState === "invalid" ? (
+              <div className="empty-state">
+                That access link is invalid, expired, or has already been used.
+              </div>
+            ) : null}
+          </div>
         </section>
       )}
     </main>

@@ -1,5 +1,10 @@
 import { DashboardPage } from "@/components/dashboard-page";
 
-export default function DashboardRoute() {
-  return <DashboardPage />;
+export default async function DashboardRoute({
+  searchParams,
+}: {
+  searchParams: Promise<{ access?: string }>;
+}) {
+  const params = await searchParams;
+  return <DashboardPage accessState={params.access} />;
 }
