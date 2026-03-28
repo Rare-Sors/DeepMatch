@@ -41,6 +41,12 @@ npm run dev
 
 4. Open `http://localhost:3000`
 
+Agent-readable skill:
+
+```bash
+open http://localhost:3000/skill.md
+```
+
 ## RareID Notes
 
 The MVP is designed for `Full Identity First`, but supports public identity in development when:
@@ -104,4 +110,12 @@ For this MVP, server state runs in memory so the project stays usable before Sup
 
 ```bash
 npm run test
+```
+
+## Agent Acceptance
+
+With the dev server running, execute a full agent-native workflow acceptance:
+
+```bash
+npm run accept:agent
 ```

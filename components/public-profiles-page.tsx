@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Check, Copy } from "lucide-react";
 
 import { TopNav } from "@/components/top-nav";
 import { demoProfiles } from "@/lib/demo-data";
@@ -197,10 +198,24 @@ function ProfileDetail({ profile }: { profile: PublicProfile }) {
 }
 
 export function PublicProfilesPage() {
+  const agentPrompt =
+    "Read deepmatch.rareid.cc/skill.md and execute the DeepMatch founder matching workflow.";
   const [profiles, setProfiles] = useState<PublicProfile[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState("");
   const [status, setStatus] = useState("Loading profiles...");
   const [isDemo, setIsDemo] = useState(false);
+  const [copyLabel, setCopyLabel] = useState("Copy");
+
+  async function handleCopyPrompt() {
+    try {
+      await navigator.clipboard.writeText(agentPrompt);
+      setCopyLabel("Copied");
+      window.setTimeout(() => setCopyLabel("Copy"), 1600);
+    } catch {
+      setCopyLabel("Failed");
+      window.setTimeout(() => setCopyLabel("Copy"), 1600);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -265,10 +280,23 @@ export function PublicProfilesPage() {
           </p>
         </div>
         <div className="prompt-panel">
-          <div className="section-label">Agent Prompt</div>
-          <p className="prompt-text">
-            Read deepmatch.rareid.cc/skill.md to match the founders.
-          </p>
+          <div className="prompt-head">
+            <div className="section-label">Agent Prompt</div>
+            <button
+              type="button"
+              className="prompt-copy-button"
+              onClick={handleCopyPrompt}
+              aria-label="Copy agent prompt"
+              title={copyLabel}
+            >
+              {copyLabel === "Copied" ? (
+                <Check size={16} strokeWidth={1.8} />
+              ) : (
+                <Copy size={16} strokeWidth={1.8} />
+              )}
+            </button>
+          </div>
+          <p className="prompt-text">{agentPrompt}</p>
         </div>
       </section>
 

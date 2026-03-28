@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "tsx --test tests/*.test.ts",
+    "accept:agent": "tsx scripts/agent-acceptance.mts",
     "rare:keys": "node scripts/generate-rare-platform-keys.mjs",
     "rare:challenge": "node scripts/issue-rare-platform-challenge.mjs",
     "rare:register": "node scripts/complete-rare-platform-registration.mjs"

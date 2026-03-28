@@ -168,12 +168,39 @@ a {
   padding: 1rem;
 }
 
+.prompt-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
 .prompt-text {
   margin-top: 0.6rem;
   font-family: var(--font-plex-mono), monospace;
   font-size: 0.95rem;
   line-height: 1.6;
   color: var(--foreground);
+}
+
+.prompt-copy-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  height: 2rem;
+  width: 2rem;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.prompt-copy-button:hover {
+  background: rgba(242, 101, 34, 0.08);
+  transform: translateY(-1px);
 }
 
 .stack-panel {
