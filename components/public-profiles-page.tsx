@@ -8,7 +8,11 @@ import { demoProfiles } from "@/lib/demo-data";
 import type { PublicProfile } from "@/types/domain";
 
 function EmptyState({ copy }: { copy: string }) {
-  return <div className="empty-state">{copy}</div>;
+  return <div className="empty-state" role="status">{copy}</div>;
+}
+
+function formatProfilesStatus(count: number, isDemo: boolean) {
+  return isDemo ? `Demo mode · ${count} profiles` : `${count} public profiles`;
 }
 
 function CompactProfileCard({
@@ -24,17 +28,19 @@ function CompactProfileCard({
     <button
       type="button"
       onClick={onSelect}
+      aria-controls={`profile-detail-${profile.agentId}`}
+      aria-pressed={isActive}
       className={isActive ? "profile-card profile-card-active" : "profile-card"}
     >
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+        <div className="min-w-0">
+          <div className="text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)] break-words">
             {profile.founderName || profile.agentId}
           </div>
-          <div className="mt-1 text-sm text-[var(--muted-strong)]">
+          <div className="mt-1 text-sm text-[var(--muted-strong)] break-words">
             {profile.baseLocation || profile.regionTimezone || "Location not listed"}
           </div>
-          <div className="mt-2 text-sm font-medium leading-6 text-[var(--foreground)]">
+          <div className="mt-2 text-sm font-medium leading-6 text-[var(--foreground)] break-words">
             {profile.headline}
           </div>
           <div className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--muted)]">
@@ -79,7 +85,12 @@ function SignalGroup({
 
 function ProfileDetail({ profile }: { profile: PublicProfile }) {
   return (
-    <section className="panel-lg">
+    <section
+      id={`profile-detail-${profile.agentId}`}
+      aria-label={`${profile.founderName || profile.agentId} profile details`}
+      className="panel-lg"
+      tabIndex={-1}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <span className="status-pill-accent">{profile.trustTier}</span>
         {profile.activelyLooking ? <span className="status-pill">Actively looking</span> : null}
@@ -197,22 +208,38 @@ function ProfileDetail({ profile }: { profile: PublicProfile }) {
   );
 }
 
-export function PublicProfilesPage() {
+export function PublicProfilesPage({
+  initialIsDemo = false,
+  initialProfiles,
+}: {
+  initialIsDemo?: boolean;
+  initialProfiles: PublicProfile[];
+}) {
   const agentPrompt =
     "Read deepmatch.rareid.cc/skill.md and execute the DeepMatch founder matching workflow.";
-  const [profiles, setProfiles] = useState<PublicProfile[]>([]);
-  const [selectedAgentId, setSelectedAgentId] = useState("");
-  const [status, setStatus] = useState("Loading profiles...");
-  const [isDemo, setIsDemo] = useState(false);
+  const [profiles, setProfiles] = useState<PublicProfile[]>(initialProfiles);
+  const [selectedAgentId, setSelectedAgentId] = useState(initialProfiles[0]?.agentId ?? "");
+  const [status, setStatus] = useState(() =>
+    formatProfilesStatus(initialProfiles.length, initialIsDemo),
+  );
+  const [isDemo, setIsDemo] = useState(initialIsDemo);
   const [copyLabel, setCopyLabel] = useState("Copy");
+  const [announcement, setAnnouncement] = useState(status);
+
+  function handleSelectProfile(profile: PublicProfile) {
+    setSelectedAgentId(profile.agentId);
+    setAnnouncement(`Viewing ${profile.founderName || profile.agentId}`);
+  }
 
   async function handleCopyPrompt() {
     try {
       await navigator.clipboard.writeText(agentPrompt);
       setCopyLabel("Copied");
+      setAnnouncement("Agent prompt copied to clipboard");
       window.setTimeout(() => setCopyLabel("Copy"), 1600);
     } catch {
       setCopyLabel("Failed");
+      setAnnouncement("Unable to copy the agent prompt");
       window.setTimeout(() => setCopyLabel("Copy"), 1600);
     }
   }
@@ -237,17 +264,16 @@ export function PublicProfilesPage() {
         setProfiles(nextProfiles);
         setSelectedAgentId((current) => current || nextProfiles[0]?.agentId || "");
         setIsDemo(apiProfiles.length === 0);
-        setStatus(
-          apiProfiles.length
-            ? `${apiProfiles.length} public profiles`
-            : `Demo mode · ${nextProfiles.length} profiles`,
-        );
+        const nextStatus = formatProfilesStatus(nextProfiles.length, apiProfiles.length === 0);
+        setStatus(nextStatus);
+        setAnnouncement(nextStatus);
       } catch {
         if (!cancelled) {
           setProfiles(demoProfiles);
           setSelectedAgentId(demoProfiles[0]?.agentId ?? "");
           setIsDemo(true);
-          setStatus("Demo mode");
+          setStatus(formatProfilesStatus(demoProfiles.length, true));
+          setAnnouncement("Demo mode loaded");
         }
       }
     }
@@ -259,6 +285,12 @@ export function PublicProfilesPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!selectedAgentId && profiles[0]?.agentId) {
+      setSelectedAgentId(profiles[0].agentId);
+    }
+  }, [profiles, selectedAgentId]);
+
   const selectedProfile = useMemo(
     () => profiles.find((profile) => profile.agentId === selectedAgentId) ?? profiles[0] ?? null,
     [profiles, selectedAgentId],
@@ -267,6 +299,9 @@ export function PublicProfilesPage() {
   return (
     <main className="page-shell">
       <TopNav />
+      <p className="sr-only" aria-live="polite">
+        {announcement}
+      </p>
 
       <section className="onboarding-strip">
         <div className="onboarding-copy">
@@ -286,7 +321,7 @@ export function PublicProfilesPage() {
               type="button"
               className="prompt-copy-button"
               onClick={handleCopyPrompt}
-              aria-label="Copy agent prompt"
+              aria-label={`${copyLabel} agent prompt`}
               title={copyLabel}
             >
               {copyLabel === "Copied" ? (
@@ -314,13 +349,13 @@ export function PublicProfilesPage() {
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
-        <div className="stack-panel">
+        <div aria-label="Founder profiles" className="stack-panel">
           {profiles.length ? (
             profiles.map((profile) => (
               <CompactProfileCard
                 key={profile.agentId}
                 isActive={selectedProfile?.agentId === profile.agentId}
-                onSelect={() => setSelectedAgentId(profile.agentId)}
+                onSelect={() => handleSelectProfile(profile)}
                 profile={profile}
               />
             ))

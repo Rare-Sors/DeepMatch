@@ -11,7 +11,7 @@ function findProfile(profiles: PublicProfile[], agentId: string) {
 }
 
 function EmptyState({ copy }: { copy: string }) {
-  return <div className="empty-state">{copy}</div>;
+  return <div className="empty-state" role="status">{copy}</div>;
 }
 
 function DashboardCard({
@@ -31,17 +31,41 @@ function DashboardCard({
   );
 }
 
-export function DashboardPage({ accessState }: { accessState?: string }) {
-  const [profiles, setProfiles] = useState<PublicProfile[]>([]);
-  const [session, setSession] = useState<RareSession | null>(null);
-  const [inbox, setInbox] = useState<MatchInbox | null>(null);
-  const [status, setStatus] = useState("Loading dashboard...");
+function formatDashboardStatus(session: RareSession | null) {
+  if (!session) {
+    return "Access link required";
+  }
+
+  return session.role === "viewer" ? "Viewer access" : "Agent session";
+}
+
+export function DashboardPage({
+  accessState,
+  initialInbox = null,
+  initialProfiles = [],
+  initialSession = null,
+  initialStatus,
+}: {
+  accessState?: string;
+  initialInbox?: MatchInbox | null;
+  initialProfiles?: PublicProfile[];
+  initialSession?: RareSession | null;
+  initialStatus: string;
+}) {
+  const [profiles, setProfiles] = useState<PublicProfile[]>(initialProfiles);
+  const [session, setSession] = useState<RareSession | null>(initialSession);
+  const [inbox, setInbox] = useState<MatchInbox | null>(initialInbox);
+  const [status, setStatus] = useState(initialStatus);
+  const [announcement, setAnnouncement] = useState(initialStatus);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      setStatus("Loading dashboard...");
+      if (!initialSession && !initialInbox) {
+        setStatus("Loading dashboard...");
+        setAnnouncement("Loading dashboard");
+      }
 
       try {
         const [profilesResponse, inboxResponse] = await Promise.all([
@@ -63,6 +87,7 @@ export function DashboardPage({ accessState }: { accessState?: string }) {
             setSession(null);
             setInbox(null);
             setStatus("Access link required");
+            setAnnouncement("Access link required");
           }
           return;
         }
@@ -75,13 +100,16 @@ export function DashboardPage({ accessState }: { accessState?: string }) {
         if (!cancelled) {
           setSession(inboxJson.session ?? null);
           setInbox(inboxJson.inbox ?? null);
-          setStatus(inboxJson.session?.role === "viewer" ? "Viewer access" : "Agent session");
+          const nextStatus = formatDashboardStatus(inboxJson.session ?? null);
+          setStatus(nextStatus);
+          setAnnouncement(nextStatus);
         }
       } catch {
         if (!cancelled) {
           setSession(null);
           setInbox(null);
           setStatus("Dashboard unavailable");
+          setAnnouncement("Dashboard unavailable");
         }
       }
     }
@@ -91,7 +119,7 @@ export function DashboardPage({ accessState }: { accessState?: string }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialInbox, initialSession]);
 
   const ownProfile = useMemo(
     () => (session ? findProfile(profiles, session.agentId) : null),
@@ -108,6 +136,9 @@ export function DashboardPage({ accessState }: { accessState?: string }) {
   return (
     <main className="page-shell">
       <TopNav />
+      <p className="sr-only" aria-live="polite">
+        {announcement}
+      </p>
 
       <section className="hero-strip">
         <div>
@@ -128,16 +159,16 @@ export function DashboardPage({ accessState }: { accessState?: string }) {
           <section className="summary-strip">
             <div className="summary-block">
               <div className="section-label">Founder</div>
-              <div className="mt-1 text-lg font-semibold tracking-[-0.02em] text-[var(--foreground)]">
+              <div className="mt-1 text-lg font-semibold tracking-[-0.02em] text-[var(--foreground)] break-words">
                 {ownProfile?.founderName || session.displayName}
               </div>
-              <div className="mt-1 text-sm text-[var(--muted)]">
+              <div className="mt-1 text-sm text-[var(--muted)] break-words">
                 {ownProfile?.baseLocation || ownProfile?.regionTimezone || "Location not listed"}
               </div>
             </div>
             <div className="summary-block summary-block-wide">
               <div className="section-label">Profile</div>
-              <div className="mt-1 text-base font-semibold text-[var(--foreground)]">
+              <div className="mt-1 text-base font-semibold text-[var(--foreground)] break-words">
                 {ownProfile?.headline || "No public profile"}
               </div>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
@@ -166,13 +197,13 @@ export function DashboardPage({ accessState }: { accessState?: string }) {
                       <article key={handoff.id} className="compact-row compact-row-accent">
                         <div className="space-y-2">
                           <div>
-                            <div className="text-base font-semibold text-[var(--foreground)]">
+                            <div className="text-base font-semibold text-[var(--foreground)] break-words">
                               {counterpart?.founderName || "Matched founder"}
                             </div>
-                            <div className="mt-1 text-sm font-medium text-[var(--foreground)]">
+                            <div className="mt-1 text-sm font-medium text-[var(--foreground)] break-words">
                               {counterpart?.headline || handoff.matchId}
                             </div>
-                            <div className="mt-1 text-sm text-[var(--muted)]">
+                            <div className="mt-1 text-sm text-[var(--muted)] break-words">
                               {counterpart?.baseLocation || counterpart?.regionTimezone || "Location not listed"}
                             </div>
                           </div>
@@ -206,13 +237,13 @@ export function DashboardPage({ accessState }: { accessState?: string }) {
                       <article key={match.id} className="compact-row">
                         <div className="space-y-2">
                           <div>
-                            <div className="text-base font-semibold text-[var(--foreground)]">
+                            <div className="text-base font-semibold text-[var(--foreground)] break-words">
                               {counterpart?.founderName || "Matched founder"}
                             </div>
-                            <div className="mt-1 text-sm font-medium text-[var(--foreground)]">
+                            <div className="mt-1 text-sm font-medium text-[var(--foreground)] break-words">
                               {counterpart?.headline || match.id}
                             </div>
-                            <div className="mt-1 text-sm text-[var(--muted)]">
+                            <div className="mt-1 text-sm text-[var(--muted)] break-words">
                               {counterpart?.baseLocation || counterpart?.regionTimezone || "Location not listed"}
                             </div>
                           </div>
@@ -243,13 +274,13 @@ export function DashboardPage({ accessState }: { accessState?: string }) {
                       <article key={request.id} className="compact-row">
                         <div className="space-y-2">
                           <div>
-                            <div className="text-base font-semibold text-[var(--foreground)]">
+                            <div className="text-base font-semibold text-[var(--foreground)] break-words">
                               {requester?.founderName || request.requesterAgentId}
                             </div>
-                            <div className="mt-1 text-sm font-medium text-[var(--foreground)]">
+                            <div className="mt-1 text-sm font-medium text-[var(--foreground)] break-words">
                               {requester?.headline || request.requesterAgentId}
                             </div>
-                            <div className="mt-1 text-sm text-[var(--muted)]">
+                            <div className="mt-1 text-sm text-[var(--muted)] break-words">
                               {requester?.baseLocation || requester?.regionTimezone || "Location not listed"}
                             </div>
                           </div>
@@ -287,7 +318,7 @@ export function DashboardPage({ accessState }: { accessState?: string }) {
               dashboard session.
             </p>
             {accessState === "invalid" ? (
-              <div className="empty-state">
+              <div className="empty-state" role="status">
                 That access link is invalid, expired, or has already been used.
               </div>
             ) : null}

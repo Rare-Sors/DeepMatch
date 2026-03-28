@@ -13,7 +13,7 @@ export function TopNav() {
 
   return (
     <div className="nav-wrap">
-      <nav className="pill-nav">
+      <nav aria-label="Primary" className="pill-nav">
         {items.map((item) => {
           const isActive =
             item.href === "/" ? pathname === "/" : pathname?.startsWith(item.href);
@@ -22,6 +22,7 @@ export function TopNav() {
             <Link
               key={item.href}
               href={item.href}
+              aria-current={isActive ? "page" : undefined}
               className={isActive ? "pill-link pill-link-active" : "pill-link"}
             >
               {item.label}
