@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f3efe6;
+  --foreground: #102217;
+  --card: rgba(255, 251, 242, 0.72);
+  --card-strong: rgba(255, 251, 242, 0.92);
+  --muted: #5e6758;
+  --line: rgba(16, 34, 23, 0.12);
+  --accent: #0c8f5d;
+  --accent-strong: #0b6c47;
+  --accent-soft: rgba(12, 143, 93, 0.12);
+  --danger-soft: rgba(170, 53, 34, 0.12);
+  --danger: #aa3522;
+  --shadow: 0 24px 60px rgba(34, 51, 38, 0.12);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-manrope);
+  --font-mono: var(--font-plex-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-manrope), sans-serif;
+  background-image:
+    radial-gradient(circle at top left, rgba(255, 205, 111, 0.28), transparent 32%),
+    radial-gradient(circle at top right, rgba(12, 143, 93, 0.16), transparent 30%),
+    linear-gradient(180deg, #f7f3ea 0%, #f0e8da 48%, #ebe3d6 100%);
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: rgba(12, 143, 93, 0.22);
+}
+
+.glass-card {
+  background: var(--card);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+
+.section-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 960px) {
+  .section-grid {
+    grid-template-columns: 1.15fr 0.85fr;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-rise {
+  animation: rise 0.55s ease-out both;
+}
