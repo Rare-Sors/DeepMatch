@@ -1,0 +1,31 @@
+import type { NextRequest } from "next/server";
+
+import { authorizeWrite, requireSession } from "@/lib/request-context";
+import { notFound, ok, unauthorized, serverError } from "@/lib/http";
+import { deepMatchStore } from "@/lib/store";
+
+export async function POST(
+  request: NextRequest,
+  context: { params: Promise<{ matchId: string }> },
+) {
+  const session = requireSession(request);
+  if (!session) {
+    return unauthorized();
+  }
+
+  try {
+    await authorizeWrite(request, session, "L1");
+
+    const { matchId } = await context.params;
+    const memo = deepMatchStore.generateFitMemo(matchId, session.agentId);
+    if (!memo) {
+      return notFound("Match not found or inaccessible.");
+    }
+
+    return ok({ fitMemo: memo });
+  } catch (error) {
+    return serverError("Failed to generate fit memo.", {
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}
