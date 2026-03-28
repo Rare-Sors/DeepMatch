@@ -1,4 +1,5 @@
 import { buildFitMemo } from "@/lib/precomm/fit-memo";
+import { HttpError } from "@/lib/http";
 import { capTrustTierForIdentityMode, dailyMatchQuotaForTier, hasTier, priorityRankForTier } from "@/lib/permissions";
 import { getSuggestedMatchingNextStep, shouldCreateMutualMatch } from "@/lib/matching/state-machine";
 import { createTrustTierSnapshot } from "@/lib/trust-tier";
@@ -54,6 +55,33 @@ function getState(): MemoryStoreState {
   }
 
   return globalThis.__deepmatchStore;
+}
+
+function isSessionExpired(session: RareSession) {
+  return typeof session.expiresAt === "number" && session.expiresAt <= Math.floor(Date.now() / 1000);
+}
+
+function getAgentEffectiveLevel(agentId: string) {
+  const state = getState();
+  return (
+    state.agents.get(agentId)?.effectiveLevel ??
+    state.trustTiers.get(agentId)?.effectiveLevel ??
+    "L0"
+  );
+}
+
+function getDailyMatchQuota(agentId: string) {
+  const state = getState();
+  return (
+    state.trustTiers.get(agentId)?.dailyMatchQuota ??
+    dailyMatchQuotaForTier(getAgentEffectiveLevel(agentId))
+  );
+}
+
+function countOutgoingRequestsOnDate(agentId: string, isoDate: string) {
+  return [...getState().matchRequests.values()].filter(
+    (request) => request.requesterAgentId === agentId && request.createdAt.startsWith(isoDate),
+  ).length;
 }
 
 function createPublicProfile(agentId: string, level: string, input: PublicProfileInput): PublicProfile {
@@ -133,13 +161,23 @@ export const deepMatchStore = {
   },
 
   getSession(sessionToken: string) {
-    return getState().sessions.get(sessionToken);
+    const state = getState();
+    const session = state.sessions.get(sessionToken);
+    if (!session) {
+      return undefined;
+    }
+
+    if (isSessionExpired(session)) {
+      state.sessions.delete(sessionToken);
+      return undefined;
+    }
+
+    return session;
   },
 
   upsertProfile(agentId: string, input: ProfileUpsertInput) {
     const state = getState();
-    const session = [...state.sessions.values()].find((value) => value.agentId === agentId);
-    const level = session?.level ?? "L0";
+    const level = getAgentEffectiveLevel(agentId);
     const publicProfile = createPublicProfile(agentId, level, input.publicProfile);
     const detailProfile = createDetailProfile(agentId, input.detailProfile);
 
@@ -154,6 +192,7 @@ export const deepMatchStore = {
 
   listPublicProfiles() {
     return [...getState().publicProfiles.values()].sort((left, right) =>
+      priorityRankForTier(right.trustTier) - priorityRankForTier(left.trustTier) ||
       right.profileFreshness.localeCompare(left.profileFreshness),
     );
   },
@@ -195,6 +234,16 @@ export const deepMatchStore = {
 
     if (existing) {
       return { request: existing, match: findMatchByParticipants(requesterAgentId, payload.targetAgentId) };
+    }
+
+    const dailyQuota = getDailyMatchQuota(requesterAgentId);
+    if (dailyQuota <= 0) {
+      throw new HttpError(403, "This account cannot create match requests.");
+    }
+
+    const requestsToday = countOutgoingRequestsOnDate(requesterAgentId, now.slice(0, 10));
+    if (requestsToday >= dailyQuota) {
+      throw new HttpError(403, `Daily match quota of ${dailyQuota} reached.`);
     }
 
     const request: MatchRequest = {
@@ -396,32 +445,50 @@ export const deepMatchStore = {
   },
 
   syncAgentLevel(agentId: string, level: RareSession["level"]) {
-    const session = [...getState().sessions.values()].find((value) => value.agentId === agentId);
-    if (!session) {
+    const state = getState();
+    const agent = state.agents.get(agentId);
+    if (!agent) {
       return null;
     }
 
-    session.level = level;
-    session.lastSeenAt = nowIso();
-    getState().sessions.set(session.sessionToken, session);
+    const normalizedLevel = capTrustTierForIdentityMode(level, agent.identityMode);
+    const updatedAt = nowIso();
+
+    for (const session of state.sessions.values()) {
+      if (session.agentId !== agentId) {
+        continue;
+      }
+
+      session.level = normalizedLevel;
+      session.lastSeenAt = updatedAt;
+      state.sessions.set(session.sessionToken, session);
+    }
+
+    agent.effectiveLevel = normalizedLevel;
+    agent.lastSeenAt = updatedAt;
+    state.agents.set(agentId, agent);
 
     const trustTier: TrustTierRecord = {
       agentId,
-      rawLevel: session.rawLevel,
-      effectiveLevel: level,
-      priorityRank: priorityRankForTier(level),
-      dailyMatchQuota: dailyMatchQuotaForTier(level),
-      updatedAt: nowIso(),
+      rawLevel: agent.rawLevel,
+      effectiveLevel: normalizedLevel,
+      priorityRank: priorityRankForTier(normalizedLevel),
+      dailyMatchQuota: dailyMatchQuotaForTier(normalizedLevel),
+      updatedAt,
     };
-    getState().trustTiers.set(agentId, trustTier);
+    state.trustTiers.set(agentId, trustTier);
 
-    const publicProfile = getState().publicProfiles.get(agentId);
+    const publicProfile = state.publicProfiles.get(agentId);
     if (publicProfile) {
-      publicProfile.trustTier = level;
-      publicProfile.profileFreshness = nowIso();
-      getState().publicProfiles.set(agentId, publicProfile);
+      publicProfile.trustTier = normalizedLevel;
+      publicProfile.profileFreshness = updatedAt;
+      state.publicProfiles.set(agentId, publicProfile);
     }
 
     return trustTier;
+  },
+
+  reset() {
+    globalThis.__deepmatchStore = undefined;
   },
 };

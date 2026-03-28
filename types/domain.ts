@@ -35,6 +35,7 @@ export interface RareSession {
   displayName: string;
   sessionPubkey: string;
   lastSeenAt: string;
+  expiresAt?: number;
 }
 
 export interface AgentRecord {

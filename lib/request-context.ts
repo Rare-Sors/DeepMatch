@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 
+import { HttpError } from "@/lib/http";
 import { deepMatchStore } from "@/lib/store";
 import { verifyRareAction } from "@/lib/rare/auth";
 import type { RareActionEnvelope } from "@/lib/rare/auth";
@@ -30,11 +31,15 @@ export async function authorizeWrite(
   actionVerification?: RareActionEnvelope,
 ) {
   if (!deepMatchStore.hasMinimumTier(session.sessionToken, minimumTier)) {
-    throw new Error(`This action requires ${minimumTier} access.`);
+    throw new HttpError(403, `This action requires ${minimumTier} access.`);
   }
 
   if (actionVerification) {
-    await verifyRareAction(session.sessionToken, actionVerification);
+    try {
+      await verifyRareAction(session.sessionToken, actionVerification);
+    } catch {
+      throw new HttpError(403, "Action verification failed.");
+    }
   }
 
   return session;

@@ -1,5 +1,17 @@
 import { NextResponse } from "next/server";
 
+export class HttpError extends Error {
+  status: number;
+  details?: unknown;
+
+  constructor(status: number, message: string, details?: unknown) {
+    super(message);
+    this.name = "HttpError";
+    this.status = status;
+    this.details = details;
+  }
+}
+
 export function ok(data: unknown, init?: ResponseInit) {
   return NextResponse.json(data, init);
 }
@@ -22,4 +34,17 @@ export function notFound(message = "Not found") {
 
 export function serverError(message = "Internal server error", details?: unknown) {
   return NextResponse.json({ error: message, details }, { status: 500 });
+}
+
+export function errorResponse(error: unknown, fallbackMessage = "Internal server error") {
+  if (error instanceof HttpError) {
+    return NextResponse.json(
+      { error: error.message, details: error.details },
+      { status: error.status },
+    );
+  }
+
+  return serverError(fallbackMessage, {
+    message: error instanceof Error ? error.message : "Unknown error",
+  });
 }
