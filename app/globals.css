@@ -3,14 +3,22 @@
 :root {
   --background: #f8f7f2;
   --foreground: #1d1f20;
+  --foreground-inverse: #fbfaf6;
   --muted: #62676c;
   --muted-strong: #44484c;
   --surface: #ffffff;
   --surface-subtle: #fbfaf6;
+  --surface-elevated: rgba(255, 252, 248, 0.94);
+  --surface-accent: #fff5ef;
+  --surface-accent-strong: #fbe8db;
   --line: rgba(29, 31, 32, 0.1);
   --line-strong: rgba(29, 31, 32, 0.18);
   --accent: #f26522;
+  --accent-strong: #7a3310;
   --accent-soft: rgba(242, 101, 34, 0.1);
+  --accent-border: rgba(122, 51, 16, 0.18);
+  --focus-ring: rgba(242, 101, 34, 0.28);
+  --selection: rgba(25, 89, 63, 0.18);
   --shadow: 0 8px 24px rgba(29, 31, 32, 0.04);
 }
 
@@ -41,7 +49,19 @@ a {
 }
 
 ::selection {
-  background: rgba(25, 89, 63, 0.18);
+  background: var(--selection);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .surface-card {
@@ -84,9 +104,9 @@ a {
 }
 
 .status-pill-accent {
-  border-color: rgba(242, 101, 34, 0.25);
-  background: var(--accent-soft);
-  color: var(--accent);
+  border-color: var(--accent-border);
+  background: var(--surface-accent-strong);
+  color: var(--accent-strong);
 }
 
 .empty-state {
@@ -120,22 +140,27 @@ a {
   gap: 0.375rem;
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.94);
+  background: var(--surface-elevated);
   padding: 0.35rem;
   box-shadow: var(--shadow);
 }
 
 .pill-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
   border-radius: 999px;
   padding: 0.7rem 1rem;
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--muted-strong);
+  touch-action: manipulation;
 }
 
 .pill-link-active {
   background: var(--foreground);
-  color: white;
+  color: var(--foreground-inverse);
 }
 
 .hero-strip {
@@ -152,8 +177,7 @@ a {
   gap: 1rem;
   border: 1px solid var(--line);
   border-radius: 24px;
-  background:
-    linear-gradient(180deg, rgba(242, 101, 34, 0.04), rgba(255, 255, 255, 0.98));
+  background: linear-gradient(180deg, var(--surface-accent), var(--surface-elevated));
   padding: 1.1rem 1.25rem;
 }
 
@@ -162,9 +186,9 @@ a {
 }
 
 .prompt-panel {
-  border: 1px solid rgba(242, 101, 34, 0.18);
+  border: 1px solid var(--accent-border);
   border-radius: 20px;
-  background: rgba(255, 252, 248, 0.96);
+  background: var(--surface-elevated);
   padding: 1rem;
 }
 
@@ -188,18 +212,19 @@ a {
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  height: 2rem;
-  width: 2rem;
+  height: 2.75rem;
+  width: 2.75rem;
   border-radius: 999px;
   border: 0;
   background: transparent;
   color: var(--accent);
   cursor: pointer;
   transition: background 140ms ease, color 140ms ease, transform 140ms ease;
+  touch-action: manipulation;
 }
 
 .prompt-copy-button:hover {
-  background: rgba(242, 101, 34, 0.08);
+  background: var(--surface-accent-strong);
   transform: translateY(-1px);
 }
 
@@ -232,6 +257,7 @@ a {
   padding: 1rem;
   text-align: left;
   transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+  touch-action: manipulation;
 }
 
 .line-clamp-2 {
@@ -247,8 +273,8 @@ a {
 }
 
 .profile-card-active {
-  border-color: rgba(242, 101, 34, 0.3);
-  box-shadow: 0 0 0 3px rgba(242, 101, 34, 0.08);
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .section-label {
@@ -292,8 +318,8 @@ a {
 }
 
 .panel-accent {
-  border-color: rgba(242, 101, 34, 0.2);
-  background: linear-gradient(180deg, rgba(242, 101, 34, 0.04), rgba(255, 255, 255, 1));
+  border-color: var(--accent-border);
+  background: linear-gradient(180deg, var(--surface-accent), var(--surface));
 }
 
 .summary-strip {
@@ -337,6 +363,13 @@ a {
   align-content: start;
 }
 
+.pill-link:focus-visible,
+.profile-card:focus-visible,
+.prompt-copy-button:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
 @media (max-width: 767px) {
   .pill-nav {
     width: 100%;
@@ -370,5 +403,24 @@ a {
 
   .dashboard-grid {
     grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .profile-card:hover,
+  .prompt-copy-button:hover {
+    transform: none;
   }
 }
