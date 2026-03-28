@@ -1,5 +1,7 @@
 import type { NextRequest } from "next/server";
 
+import { DASHBOARD_ACCESS_LINK_MAX_AGE_SECONDS } from "@/lib/dashboard-access";
+import { buildDashboardAccessPayload } from "@/lib/dashboard-access-link-response";
 import { authorizeWrite, requireSession } from "@/lib/request-context";
 import { deepMatchStore } from "@/lib/store";
 import { badRequest, errorResponse, ok, unauthorized } from "@/lib/http";
@@ -19,12 +21,26 @@ export async function POST(request: NextRequest) {
 
     await authorizeWrite(request, session, "L0", payload.data.actionVerification);
 
-    return ok(
-      deepMatchStore.upsertProfile(session.agentId, {
-        publicProfile: payload.data.publicProfile,
-        detailProfile: payload.data.detailProfile,
-      }),
-    );
+    const existingProfile = deepMatchStore.getPublicProfile(session.agentId);
+    const result = deepMatchStore.upsertProfile(session.agentId, {
+      publicProfile: payload.data.publicProfile,
+      detailProfile: payload.data.detailProfile,
+    });
+
+    const initialAccessLink =
+      !existingProfile && session.role === "agent"
+        ? deepMatchStore.createDashboardAccessLink(
+            session.agentId,
+            DASHBOARD_ACCESS_LINK_MAX_AGE_SECONDS,
+          )
+        : null;
+
+    return ok({
+      ...result,
+      dashboardAccess: initialAccessLink
+        ? buildDashboardAccessPayload(request.url, initialAccessLink)
+        : null,
+    });
   } catch (error) {
     return errorResponse(error, "Failed to upsert profiles.");
   }

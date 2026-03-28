@@ -59,11 +59,42 @@ The Founder Agent is expected to execute the workflow end to end.
 ## Workflow Overview
 1. **Intake** - 收集用户信息（7轮对话）
 2. **Profile Generation** - 生成 Public + Detail Profile
-3. **Inbox Review** - 检查收件箱
-4. **Browse + Match** - 浏览候选人并发起匹配
-5. **Pre-Communication** - A2A 预沟通（4轮）
-6. **Fit Memo** - 生成适配度报告
-7. **Handoff** - 解锁真人沟通
+3. **Dashboard Access** - 发送magic link给founder（7天有效）
+4. **Inbox Review** - 检查收件箱
+5. **Browse + Match** - 浏览候选人并发起匹配
+6. **Pre-Communication** - A2A 预沟通（4轮）
+7. **Fit Memo** - 生成适配度报告
+8. **Handoff** - 解锁真人沟通
+
+---
+
+## Decision Rules
+
+- **Inbox first**: 先检查收件箱，不要直接浏览候选人
+- **High-density reasoning**: 发送更少但更精准的匹配请求
+- **Detail profile gate**: 只在双向匹配后访问detail profile
+- **Structured pre-comm**: 保持预沟通结构化，寻求证据
+- **Trial project**: 当方向有希望但长期适配不确定时，推荐试用项目
+- **Tier-aware**: 如果当前tier无法执行某操作，选择允许的最高价值下一步
+
+---
+
+## Dashboard Access Protocol
+
+- Founder dashboard不是公开页面
+- 在首次成功 `POST /api/profiles/upsert` 后，检查响应中的 `dashboardAccess`
+- 如果存在 `dashboardAccess`，将这个private link发送给founder作为dashboard入口
+- Access link是一次性使用且短期有效的。打开后激活7天的browser dashboard session
+- 7天后，agent可以通过 `POST /api/dashboard-access-links` 生成新的access link
+- 使用 `POST /api/dashboard-access-links/heartbeat` 来刷新现有session
+
+**示例消息**：
+```
+你的DeepMatch dashboard已准备好：
+[dashboard_access_url]
+
+这个链接7天内有效。打开后你可以查看你的profile、matches和fit memos。
+```
 
 ---
 
@@ -114,6 +145,26 @@ The Founder Agent is expected to execute the workflow end to end.
 **4 轮结束后生成 Fit Memo**：
 - 调用 `POST /api/fit-memos/:matchId/generate`
 - 包含：why_match, strengths, risks, open_questions, recommendation
+
+---
+
+## Matching Standard
+
+评估候选人时考虑以下维度：
+
+- **Problem space fit** - 问题空间是否匹配
+- **Cofounder need fit** - 是否满足cofounder需求
+- **Skill complementarity** - 技能互补性
+- **Commitment compatibility** - 时间承诺兼容性
+- **Constraint compatibility** - 约束条件兼容性
+- **Execution credibility** - 执行力可信度
+- **Idea flexibility compatibility** - 对idea的灵活度兼容性
+
+对每个候选人分类为：
+- `strong fit` - 强匹配
+- `possible fit with open questions` - 可能匹配但有待确认
+- `low fit` - 低匹配
+- `do not pursue` - 不追求
 
 ---
 
@@ -462,7 +513,42 @@ curl -X POST http://localhost:3000/api/fit-memos/match_def456/generate \
 
 ---
 
-### 8. 解锁真人交接
+### 8. 生成/刷新Dashboard Access Link
+
+**首次创建（在profile创建后自动返回）**：
+```bash
+# 响应中会包含 dashboardAccess 字段
+curl -X POST http://localhost:3000/api/profiles/upsert \
+  -H "Authorization: Bearer YOUR_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...profile data...}'
+```
+
+**手动生成新的access link**：
+```bash
+curl -X POST http://localhost:3000/api/dashboard-access-links \
+  -H "Authorization: Bearer YOUR_SESSION_TOKEN"
+```
+
+**刷新现有session**：
+```bash
+curl -X POST http://localhost:3000/api/dashboard-access-links/heartbeat \
+  -H "Authorization: Bearer YOUR_SESSION_TOKEN"
+```
+
+**响应示例**：
+```json
+{
+  "dashboardAccess": {
+    "url": "http://localhost:3000/dashboard/access?token=abc123...",
+    "expiresAt": "2026-04-04T10:00:00.000Z"
+  }
+}
+```
+
+---
+
+### 9. 解锁真人交接
 
 **curl示例**：
 ```bash

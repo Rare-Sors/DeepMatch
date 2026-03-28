@@ -2,6 +2,80 @@
 
 This is the current TypeScript integration contract for a third-party platform using Rare.
 
+## Goal
+
+This document is optimized for coding agents such as Codex and Claude Code.
+
+The expected outcome is:
+
+- understand the Rare platform login model quickly
+- add the minimum backend pieces correctly
+- avoid confusing identity bootstrap with platform login
+- ship a working public-login integration first
+
+## Audience
+
+This document is for platform engineers integrating Rare into a product backend.
+
+It is not the runtime playbook for an agent operating on an already integrated platform.
+Runtime agents should follow that platform's own auth and skill instructions.
+
+## Coding-Agent Contract
+
+If you are a coding agent integrating Rare into a platform, follow this contract:
+
+1. Create a Rare platform kit with challenge, replay, and session stores.
+2. Expose exactly two backend handlers first: `/auth/challenge` and `/auth/complete`.
+3. Feed `kit.completeAuth(...)` the delegated login proof plus identity attestation.
+4. Persist and reuse the returned platform `session_token`.
+5. Only after login works, add delegated action verification and full-identity registration.
+
+If you are not implementing backend auth handlers, this is the wrong document.
+
+## If You Are Only Given This Document
+
+Use this rule:
+
+- if you are implementing backend auth handlers, keep reading
+- if you are trying to operate an already integrated platform as an agent, stop here and use that platform's runtime auth instructions
+
+Do not infer from this document that `rare register` is enough for platform access.
+
+## Common Misreads To Avoid
+
+- `rare register` creates or refreshes a Rare identity; it does not create a platform session
+- `hosted_management_token` is not a platform `session_token`
+- `/auth/challenge` and `/auth/complete` are platform integration endpoints, not the normal runtime path for an agent using an already integrated platform
+- the normal runtime path for an agent is typically `rare login --aud <aud> --platform-url <platform>/api/rare`
+
+## Three Different Things
+
+| Command / Concept | Purpose | Reusable output |
+|---|---|---|
+| `rare register` | Create or refresh Rare identity | `agent_id`, maybe `hosted_management_token` |
+| `rare login` | Log into a specific integrated platform | `session_token` |
+| `kit.completeAuth(...)` | Platform backend verifies delegated login proof and issues its own session | platform-side `session_token` result |
+
+Only the platform `session_token` is the normal runtime credential for platform API calls.
+
+## Fast Path For Coding Agents
+
+Implement this first:
+
+- install `@rare-id/platform-kit-core`, `@rare-id/platform-kit-client`, `@rare-id/platform-kit-web`
+- create `kit = createRarePlatformKit(...)`
+- implement `POST /auth/challenge` with `kit.issueChallenge(aud)`
+- implement `POST /auth/complete` with `kit.completeAuth(...)`
+- store the returned `session_token`
+- test with:
+
+```bash
+rare register --name alice
+rare login --aud platform --platform-url http://127.0.0.1:8000/platform --public-only
+```
+
+Do not start with full identity, DNS registration, or negative event ingestion unless the task explicitly requires them.
+
 ## 10-Minute Quick Start
 
 Start with public login first. It gives you local verification, session handling, and delegated action support without requiring Rare platform registration.
@@ -63,6 +137,28 @@ const login = await kit.completeAuth({
 });
 ```
 
+This code is backend implementation detail.
+It explains how a platform turns delegated Rare auth proof into its own session.
+It is not the normal runtime instruction set for an agent using the platform.
+
+### Minimal request/response shape
+
+Your platform should accept an auth-complete payload conceptually equivalent to:
+
+```json
+{
+  "nonce": "...",
+  "agent_id": "...",
+  "session_pubkey": "...",
+  "delegation_token": "...",
+  "signature_by_session": "...",
+  "public_identity_attestation": "...",
+  "full_identity_attestation": "..."
+}
+```
+
+Your platform backend may translate those fields to SDK camelCase before calling `kit.completeAuth(...)`.
+
 On success, the platform receives:
 
 - `session_token`
@@ -75,12 +171,89 @@ On success, the platform receives:
 
 `level` is the effective platform level after SDK policy is applied.
 
+### Naming map: wire format vs SDK
+
+Coding agents commonly trip over this conversion. Use this mapping:
+
+| Wire / JSON field | SDK field |
+|---|---|
+| `agent_id` | `agentId` |
+| `session_pubkey` | `sessionPubkey` |
+| `delegation_token` | `delegationToken` |
+| `signature_by_session` | `signatureBySession` |
+| `public_identity_attestation` | `publicIdentityAttestation` |
+| `full_identity_attestation` | `fullIdentityAttestation` |
+
 ### 4) Validate the flow with Agent CLI
 
 ```bash
 rare register --name alice
 rare login --aud platform --platform-url http://127.0.0.1:8000/platform --public-only
 ```
+
+Interpretation:
+
+- `rare register` is identity bootstrap only
+- `rare login` is what produces a platform session for normal runtime use
+- the manual `completeAuth(...)` payload is mostly relevant to platform implementers and auth debugging
+
+If you are running an agent against an already integrated platform, the practical runtime step is usually just:
+
+```bash
+rare login --aud <platform-aud> --platform-url <platform-base>/api/rare
+```
+
+Then reuse the returned `session_token` on platform API calls.
+
+## Minimal Backend Skeleton
+
+Use this as the implementation outline:
+
+```ts
+import { RareApiClient } from "@rare-id/platform-kit-client";
+import {
+  InMemoryChallengeStore,
+  InMemoryReplayStore,
+  InMemorySessionStore,
+  createRarePlatformKit,
+} from "@rare-id/platform-kit-web";
+
+const rare = new RareApiClient({ rareBaseUrl: "https://api.rareid.cc" });
+
+export const kit = createRarePlatformKit({
+  aud: "platform",
+  rareApiClient: rare,
+  challengeStore: new InMemoryChallengeStore(),
+  replayStore: new InMemoryReplayStore(),
+  sessionStore: new InMemorySessionStore(),
+});
+
+export async function issueChallengeHandler() {
+  return kit.issueChallenge("platform");
+}
+
+export async function completeAuthHandler(body: {
+  nonce: string;
+  agent_id: string;
+  session_pubkey: string;
+  delegation_token: string;
+  signature_by_session: string;
+  public_identity_attestation?: string;
+  full_identity_attestation?: string;
+}) {
+  return kit.completeAuth({
+    nonce: body.nonce,
+    agentId: body.agent_id,
+    sessionPubkey: body.session_pubkey,
+    delegationToken: body.delegation_token,
+    signatureBySession: body.signature_by_session,
+    publicIdentityAttestation: body.public_identity_attestation,
+    fullIdentityAttestation: body.full_identity_attestation,
+  });
+}
+```
+
+This is the minimum useful integration.
 
 ## Required Config And Storage
 
@@ -97,6 +270,16 @@ Hosted-signer delegations require the Rare signer public key:
 - `rareSignerPublicKeyB64`
 
 If you only verify self-hosted delegations, that extra signer key is not required.
+
+## Definition Of Done For The First Integration
+
+Treat the first pass as complete when all of these are true:
+
+- `/auth/challenge` returns a nonce-bearing challenge
+- `/auth/complete` returns `session_token`
+- `rare login --aud <aud> --platform-url <platform>/api/rare --public-only` succeeds
+- your backend stores sessions and accepts the returned `session_token`
+- replay checks are active for challenge nonces and delegation tokens
 
 ## Verification Red Lines
 

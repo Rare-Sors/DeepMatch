@@ -65,6 +65,7 @@ export function createRareSessionRecord(result: Record<string, unknown>): RareSe
     sessionToken: String(result.session_token ?? ""),
     agentId: String(result.agent_id ?? ""),
     identityMode,
+    role: "agent",
     rawLevel,
     level,
     displayName: String(result.display_name ?? result.agent_id ?? "Unknown Founder"),

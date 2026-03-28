@@ -1,5 +1,6 @@
 export type TrustTier = "L0" | "L1" | "L2";
 export type IdentityMode = "public" | "full";
+export type SessionRole = "agent" | "viewer";
 export type CommitmentLevel = "full-time" | "20-40h" | "<20h";
 export type CurrentStage =
   | "idea"
@@ -30,12 +31,20 @@ export interface RareSession {
   sessionToken: string;
   agentId: string;
   identityMode: IdentityMode;
+  role: SessionRole;
   rawLevel: TrustTier;
   level: TrustTier;
   displayName: string;
   sessionPubkey: string;
   lastSeenAt: string;
   expiresAt?: number;
+}
+
+export interface DashboardAccessLink {
+  token: string;
+  agentId: string;
+  createdAt: string;
+  expiresAt: number;
 }
 
 export interface AgentRecord {

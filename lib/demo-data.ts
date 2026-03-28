@@ -84,6 +84,7 @@ export const demoSession: RareSession = {
   sessionToken: "demo-session-token",
   agentId: "agent_zoe_devtools",
   identityMode: "full",
+  role: "viewer",
   rawLevel: "L2",
   level: "L2",
   displayName: "Zoe Founder Agent",

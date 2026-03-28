@@ -2,16 +2,74 @@ import test from "node:test";
 import { beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
+import { NextRequest } from "next/server";
+
+import {
+  DASHBOARD_HEARTBEAT_REFRESH_WINDOW_SECONDS,
+  DASHBOARD_SESSION_COOKIE,
+  DASHBOARD_SESSION_MAX_AGE_SECONDS,
+} from "../lib/dashboard-access.ts";
+import { POST as heartbeatDashboardAccess } from "../app/api/dashboard-access-links/heartbeat/route.ts";
+import { POST as upsertProfiles } from "../app/api/profiles/upsert/route.ts";
 import { HttpError, errorResponse } from "../lib/http.ts";
 import { getSuggestedMatchingNextStep, shouldCreateMutualMatch } from "../lib/matching/state-machine.ts";
 import { buildFitMemo } from "../lib/precomm/fit-memo.ts";
 import { capTrustTierForIdentityMode, hasTier } from "../lib/permissions.ts";
+import { authorizeWrite } from "../lib/request-context.ts";
 import { deepMatchStore } from "../lib/store.ts";
+import { GET as consumeDashboardAccessLink } from "../app/dashboard/access/route.ts";
+import { GET as getInbox } from "../app/api/matches/inbox/route.ts";
 import type { MatchRecord, PreCommunicationMessage } from "../types/domain.ts";
 
 beforeEach(() => {
   deepMatchStore.reset();
 });
+
+function buildProfilePayload(suffix: string) {
+  return {
+    publicProfile: {
+      founderName: `Founder ${suffix}`,
+      baseLocation: "Singapore",
+      education: "NUS",
+      experienceHighlights: ["Operator", "Builder"],
+      headline: `Founder ${suffix} is building workflow software`,
+      oneLineThesis: `Thesis ${suffix}`,
+      whyNowBrief: `Why now ${suffix}`,
+      currentStage: "prototype" as const,
+      currentProgress: `Progress ${suffix}`,
+      commitmentLevel: "full-time" as const,
+      activelyLooking: true,
+      founderStrengths: ["product"],
+      lookingFor: ["engineering"],
+      preferredRoleSplit: "Product plus engineering split.",
+      skillTags: ["AI", "workflow"],
+      workStyleSummary: "Direct and fast.",
+      regionTimezone: "UTC+8",
+      collaborationConstraintsBrief: "None.",
+      publicProofs: ["prototype"],
+    },
+    detailProfile: {
+      fullProblemStatement: `Problem ${suffix}`,
+      currentHypothesis: `Hypothesis ${suffix}`,
+      ideaRigidity: "problem-committed",
+      whyMe: `Why me ${suffix}`,
+      executionHistory: `Execution ${suffix}`,
+      proofDetails: ["demo"],
+      currentAvailabilityDetails: "Full-time.",
+      roleExpectation: "Own product.",
+      decisionStyle: "debate then commit",
+      communicationStyle: "Direct.",
+      valuesAndNonNegotiables: ["clarity"],
+      riskPreference: "moderate",
+      equityAndStructureExpectation: "standard vesting",
+      openQuestionsForMatch: ["How fast can we ship?"],
+      redFlagChecks: ["indefinite part-time"],
+      collaborationTrialPreference: "2-week sprint",
+      agentAuthorityScope: ["role split"],
+      disclosureGuardrails: ["no sensitive details before handoff"],
+    },
+  };
+}
 
 test("public identity caps L2 to L1", () => {
   assert.equal(capTrustTierForIdentityMode("L2", "public"), "L1");
@@ -123,6 +181,7 @@ test("simulated founder flow reaches mutual match, pre-comm, memo, and handoff",
     sessionToken: "sim_alice",
     agentId: "sim_agent_alice",
     identityMode: "full",
+    role: "agent",
     rawLevel: "L1",
     level: "L1",
     displayName: "Alice Agent",
@@ -134,6 +193,7 @@ test("simulated founder flow reaches mutual match, pre-comm, memo, and handoff",
     sessionToken: "sim_bob",
     agentId: "sim_agent_bob",
     identityMode: "full",
+    role: "agent",
     rawLevel: "L1",
     level: "L1",
     displayName: "Bob Agent",
@@ -290,6 +350,7 @@ test("expired sessions are rejected by the local session store", () => {
     sessionToken: "expired_session",
     agentId: "expired_agent",
     identityMode: "full",
+    role: "agent",
     rawLevel: "L1",
     level: "L1",
     displayName: "Expired Agent",
@@ -308,6 +369,7 @@ test("profile trust tier follows the latest agent level instead of an older sess
     sessionToken: "old_public",
     agentId: "agent_upgrade",
     identityMode: "public",
+    role: "agent",
     rawLevel: "L2",
     level: "L1",
     displayName: "Upgrade Agent",
@@ -319,6 +381,7 @@ test("profile trust tier follows the latest agent level instead of an older sess
     sessionToken: "new_full",
     agentId: "agent_upgrade",
     identityMode: "full",
+    role: "agent",
     rawLevel: "L2",
     level: "L2",
     displayName: "Upgrade Agent",
@@ -376,6 +439,7 @@ test("daily match quota is enforced for L1 agents", () => {
     sessionToken: "quota_owner",
     agentId: "quota_owner",
     identityMode: "full",
+    role: "agent",
     rawLevel: "L1",
     level: "L1",
     displayName: "Quota Owner",
@@ -389,6 +453,7 @@ test("daily match quota is enforced for L1 agents", () => {
       sessionToken: `quota_session_${index}`,
       agentId: targetAgentId,
       identityMode: "full",
+      role: "agent",
       rawLevel: "L1",
       level: "L1",
       displayName: targetAgentId,
@@ -427,4 +492,273 @@ test("http errors map to the original status code instead of becoming 500s", asy
 
   assert.equal(response.status, 403);
   assert.equal(json.error, "This action requires L1 access.");
+});
+
+test("dashboard access links are one-time and mint weekly viewer sessions", () => {
+  deepMatchStore.upsertSession({
+    sessionToken: "issuer_session",
+    agentId: "issuer_agent",
+    identityMode: "full",
+    role: "agent",
+    rawLevel: "L1",
+    level: "L1",
+    displayName: "Issuer Agent",
+    sessionPubkey: "pub_issuer",
+    lastSeenAt: new Date().toISOString(),
+  });
+
+  const link = deepMatchStore.createDashboardAccessLink("issuer_agent", 60);
+  assert.ok(link);
+
+  const viewer = deepMatchStore.consumeDashboardAccessLink(
+    link!.token,
+    DASHBOARD_SESSION_MAX_AGE_SECONDS,
+  );
+  assert.ok(viewer);
+  assert.equal(viewer!.role, "viewer");
+  assert.equal(
+    viewer!.expiresAt! > Math.floor(Date.now() / 1000) + DASHBOARD_SESSION_MAX_AGE_SECONDS - 5,
+    true,
+  );
+  assert.equal(deepMatchStore.consumeDashboardAccessLink(link!.token, 60), null);
+});
+
+test("viewer sessions cannot perform write actions", async () => {
+  const session = deepMatchStore.upsertSession({
+    sessionToken: "viewer_session",
+    agentId: "viewer_agent",
+    identityMode: "full",
+    role: "viewer",
+    rawLevel: "L1",
+    level: "L1",
+    displayName: "Viewer Agent",
+    sessionPubkey: "",
+    lastSeenAt: new Date().toISOString(),
+  });
+
+  const request = new NextRequest("http://localhost/api/match-requests", {
+    method: "POST",
+    headers: {
+      cookie: `${DASHBOARD_SESSION_COOKIE}=${session.sessionToken}`,
+    },
+  });
+
+  await assert.rejects(
+    () => authorizeWrite(request, session, "L0"),
+    /Dashboard viewer sessions cannot perform write actions/,
+  );
+});
+
+test("dashboard access route sets a cookie and inbox route accepts it", async () => {
+  deepMatchStore.upsertSession({
+    sessionToken: "agent_source",
+    agentId: "cookie_agent",
+    identityMode: "full",
+    role: "agent",
+    rawLevel: "L1",
+    level: "L1",
+    displayName: "Cookie Agent",
+    sessionPubkey: "pub_cookie",
+    lastSeenAt: new Date().toISOString(),
+  });
+
+  const link = deepMatchStore.createDashboardAccessLink("cookie_agent", 60);
+  assert.ok(link);
+
+  const consumeResponse = await consumeDashboardAccessLink(
+    new NextRequest(`http://localhost/dashboard/access?token=${link!.token}`),
+  );
+
+  assert.equal(consumeResponse.status, 307);
+  assert.equal(consumeResponse.headers.get("location"), "http://localhost/dashboard");
+
+  const cookieHeader = consumeResponse.headers.get("set-cookie");
+  assert.ok(cookieHeader);
+  const cookiePair = cookieHeader.split(";", 1)[0];
+
+  const inboxResponse = await getInbox(
+    new NextRequest("http://localhost/api/matches/inbox", {
+      headers: {
+        cookie: cookiePair,
+      },
+    }),
+  );
+  const inboxJson = await inboxResponse.json();
+
+  assert.equal(inboxResponse.status, 200);
+  assert.equal(inboxJson.session.agentId, "cookie_agent");
+  assert.equal(inboxJson.session.role, "viewer");
+});
+
+test("first onboarding profile upsert returns an initial dashboard link", async () => {
+  const session = deepMatchStore.upsertSession({
+    sessionToken: "onboarding_agent",
+    agentId: "onboarding_agent",
+    identityMode: "full",
+    role: "agent",
+    rawLevel: "L1",
+    level: "L1",
+    displayName: "Onboarding Agent",
+    sessionPubkey: "pub_onboarding",
+    lastSeenAt: new Date().toISOString(),
+  });
+
+  const response = await upsertProfiles(
+    new NextRequest("http://localhost/api/profiles/upsert", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: `${DASHBOARD_SESSION_COOKIE}=${session.sessionToken}`,
+      },
+      body: JSON.stringify(buildProfilePayload("onboarding")),
+    }),
+  );
+  const json = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(typeof json.dashboardAccess?.accessUrl, "string");
+  assert.match(json.dashboardAccess.accessUrl, /\/dashboard\/access\?token=/);
+
+  const secondResponse = await upsertProfiles(
+    new NextRequest("http://localhost/api/profiles/upsert", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: `${DASHBOARD_SESSION_COOKIE}=${session.sessionToken}`,
+      },
+      body: JSON.stringify(buildProfilePayload("onboarding-update")),
+    }),
+  );
+  const secondJson = await secondResponse.json();
+
+  assert.equal(secondResponse.status, 200);
+  assert.equal(secondJson.dashboardAccess, null);
+});
+
+test("heartbeat returns not_due when the current viewer session is still healthy", async () => {
+  const agent = deepMatchStore.upsertSession({
+    sessionToken: "heartbeat_agent_not_due",
+    agentId: "heartbeat_agent_not_due",
+    identityMode: "full",
+    role: "agent",
+    rawLevel: "L1",
+    level: "L1",
+    displayName: "Heartbeat Agent",
+    sessionPubkey: "pub_heartbeat_1",
+    lastSeenAt: new Date().toISOString(),
+  });
+
+  deepMatchStore.upsertSession({
+    sessionToken: "heartbeat_viewer_not_due",
+    agentId: agent.agentId,
+    identityMode: "full",
+    role: "viewer",
+    rawLevel: "L1",
+    level: "L1",
+    displayName: agent.displayName,
+    sessionPubkey: "",
+    lastSeenAt: new Date().toISOString(),
+    expiresAt:
+      Math.floor(Date.now() / 1000) + DASHBOARD_HEARTBEAT_REFRESH_WINDOW_SECONDS + 3600,
+  });
+
+  const response = await heartbeatDashboardAccess(
+    new NextRequest("http://localhost/api/dashboard-access-links/heartbeat", {
+      method: "POST",
+      headers: {
+        cookie: `${DASHBOARD_SESSION_COOKIE}=${agent.sessionToken}`,
+      },
+    }),
+  );
+  const json = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(json.status, "not_due");
+  assert.equal(json.dashboardAccess, null);
+});
+
+test("heartbeat reuses a pending link when the viewer session is near expiry", async () => {
+  const agent = deepMatchStore.upsertSession({
+    sessionToken: "heartbeat_agent_pending",
+    agentId: "heartbeat_agent_pending",
+    identityMode: "full",
+    role: "agent",
+    rawLevel: "L1",
+    level: "L1",
+    displayName: "Heartbeat Pending Agent",
+    sessionPubkey: "pub_heartbeat_2",
+    lastSeenAt: new Date().toISOString(),
+  });
+
+  deepMatchStore.upsertSession({
+    sessionToken: "heartbeat_viewer_pending",
+    agentId: agent.agentId,
+    identityMode: "full",
+    role: "viewer",
+    rawLevel: "L1",
+    level: "L1",
+    displayName: agent.displayName,
+    sessionPubkey: "",
+    lastSeenAt: new Date().toISOString(),
+    expiresAt: Math.floor(Date.now() / 1000) + 120,
+  });
+
+  const pendingLink = deepMatchStore.createDashboardAccessLink(agent.agentId, 600);
+  assert.ok(pendingLink);
+
+  const response = await heartbeatDashboardAccess(
+    new NextRequest("http://localhost/api/dashboard-access-links/heartbeat", {
+      method: "POST",
+      headers: {
+        cookie: `${DASHBOARD_SESSION_COOKIE}=${agent.sessionToken}`,
+      },
+    }),
+  );
+  const json = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(json.status, "already_pending");
+  assert.match(json.dashboardAccess.accessUrl, new RegExp(`${pendingLink!.token}$`));
+  assert.equal(json.dashboardAccess.viewerSessionExpiresAt > Math.floor(Date.now() / 1000), true);
+});
+
+test("heartbeat creates a new link when the dashboard session is expiring and no link is pending", async () => {
+  const agent = deepMatchStore.upsertSession({
+    sessionToken: "heartbeat_agent_create",
+    agentId: "heartbeat_agent_create",
+    identityMode: "full",
+    role: "agent",
+    rawLevel: "L1",
+    level: "L1",
+    displayName: "Heartbeat Create Agent",
+    sessionPubkey: "pub_heartbeat_3",
+    lastSeenAt: new Date().toISOString(),
+  });
+
+  deepMatchStore.upsertSession({
+    sessionToken: "heartbeat_viewer_create",
+    agentId: agent.agentId,
+    identityMode: "full",
+    role: "viewer",
+    rawLevel: "L1",
+    level: "L1",
+    displayName: agent.displayName,
+    sessionPubkey: "",
+    lastSeenAt: new Date().toISOString(),
+    expiresAt: Math.floor(Date.now() / 1000) + 60,
+  });
+
+  const response = await heartbeatDashboardAccess(
+    new NextRequest("http://localhost/api/dashboard-access-links/heartbeat", {
+      method: "POST",
+      headers: {
+        cookie: `${DASHBOARD_SESSION_COOKIE}=${agent.sessionToken}`,
+      },
+    }),
+  );
+  const json = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(json.status, "created");
+  assert.match(json.dashboardAccess.accessUrl, /\/dashboard\/access\?token=/);
 });
