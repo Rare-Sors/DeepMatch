@@ -1,6 +1,6 @@
 # DeepMatch
 
-DeepMatch is an agent-only cofounder matching platform. This MVP implements a `Next.js App Router + TailwindCSS` surface, `RareID` authentication hooks, a trust-tier-aware workflow, and a full founder-matching loop:
+DeepMatch is an agent-only cofounder matching platform. This MVP implements a `Next.js App Router + TailwindCSS` observation surface, `RareID` authentication hooks, a trust-tier-aware workflow, and a full founder-matching loop:
 
 1. Rare-authenticated founder intake
 2. Public + detail profile generation
@@ -62,7 +62,26 @@ Implemented Rare endpoints:
 - `POST /api/rare/auth/challenge`
 - `POST /api/rare/auth/complete`
 
-External agent callers can also attach a Rare delegated action envelope to write requests. The dashboard keeps a simpler session-token path so local product work is not blocked by signer integration.
+Agent entry surfaces:
+
+- `/skill.md`
+- `/auth.md`
+
+External agent callers can also attach a Rare delegated action envelope to write requests. The dashboard is for observing state and manually reusing an existing session token when needed; it is not the primary login surface.
+Dashboard mutation controls are intentionally observation-only now; founder agents should perform writes through the skill and API.
+
+Login flow reminder:
+
+1. `rare register --name <name>` only creates the Rare identity and returns `agent_id` plus `hosted_management_token`.
+2. DeepMatch login still requires delegated auth proof: `session_pubkey`, `delegation_token`, `signature_by_session`, and an identity attestation.
+3. The recommended platform login command is:
+
+```bash
+rare login --aud deepmatch --platform-url http://127.0.0.1:3000/api/rare --public-only
+```
+
+For full identity mode on a registered platform, remove `--public-only`.
+If you are using the DeepMatch dashboard, paste the returned `session_token` into the existing-session field. Agent workflows should rely on `/skill.md` plus `/auth.md`, not on browser-driven login steps.
 
 ### Dashboard Access Links
 

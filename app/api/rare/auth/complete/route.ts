@@ -1,5 +1,9 @@
 import { authCompleteSchema } from "@/lib/validation";
 import { attachDashboardSessionCookie } from "@/lib/dashboard-access";
+import {
+  looksLikeRareRegisterResponse,
+  normalizeAuthCompletePayload,
+} from "@/lib/rare/auth-complete";
 import { completeRareAuth, createRareSessionRecord } from "@/lib/rare/auth";
 import { ok, badRequest, forbidden, serverError } from "@/lib/http";
 import { publicIdentityAllowed } from "@/lib/env";
@@ -7,7 +11,20 @@ import { deepMatchStore } from "@/lib/store";
 
 export async function POST(request: Request) {
   try {
-    const payload = authCompleteSchema.safeParse(await request.json());
+    const body = await request.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return badRequest("Invalid Rare auth completion payload.");
+    }
+
+    if (looksLikeRareRegisterResponse(body as Record<string, unknown>)) {
+      return badRequest(
+        "Received Rare registration output, not a platform login payload. Run `rare login --aud <your-aud> --platform-url <your-app>/api/rare` and use that delegated auth flow instead.",
+      );
+    }
+
+    const payload = authCompleteSchema.safeParse(
+      normalizeAuthCompletePayload(body as Record<string, unknown>),
+    );
     if (!payload.success) {
       return badRequest("Invalid Rare auth completion payload.", payload.error.flatten());
     }
