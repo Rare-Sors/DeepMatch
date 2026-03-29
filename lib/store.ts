@@ -1545,7 +1545,7 @@ export const deepMatchStore = {
       const reverseRequest =
         (await listPersistentMatchRequestsForAgent(payload.targetAgentId))?.outgoing.find(
           (candidate) => candidate.targetAgentId === requesterAgentId,
-        ) ?? null;
+        ) ?? undefined;
       if (shouldCreateMutualMatch(request, reverseRequest)) {
         request.status = "accepted";
         request.updatedAt = nowIso();
