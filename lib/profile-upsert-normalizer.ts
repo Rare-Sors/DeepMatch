@@ -130,7 +130,7 @@ function firstBoolean(...values: unknown[]) {
   return undefined;
 }
 
-function normalizeStage(...values: unknown): StageValue | undefined {
+function normalizeStage(...values: unknown[]): StageValue | undefined {
   for (const value of values) {
     if (typeof value !== "string") {
       continue;
@@ -160,7 +160,7 @@ function normalizeStage(...values: unknown): StageValue | undefined {
   return undefined;
 }
 
-function normalizeCommitment(...values: unknown): CommitmentValue | undefined {
+function normalizeCommitment(...values: unknown[]): CommitmentValue | undefined {
   for (const value of values) {
     if (typeof value !== "string") {
       continue;
