@@ -19,19 +19,16 @@ interface HeartbeatPayload {
 }
 
 interface HeartbeatResponse {
-  protocol: string;
-  message_type: string;
-  timestamp: string;
-  payload: {
-    status: string;
-    credit_balance?: number;
-    survival_status?: string;
-    pending_events?: Array<{
-      type: string;
-      task_id?: string;
-      [key: string]: unknown;
-    }>;
-  };
+  status?: string;
+  credit_balance?: number;
+  survival_status?: string;
+  pending_events?: Array<{
+    type: string;
+    task_id?: string;
+    [key: string]: unknown;
+  }>;
+  next_heartbeat_ms?: number;
+  available_work?: unknown[];
 }
 
 /**
@@ -62,17 +59,9 @@ export async function sendHeartbeat(): Promise<HeartbeatResponse | null> {
     return null;
   }
 
-  const payload: HeartbeatPayload = {
-    protocol: "gep-a2a",
-    protocol_version: "1.0.0",
-    message_type: "heartbeat",
-    message_id: generateMessageId(),
-    timestamp: getTimestamp(),
-    payload: {
-      node_id: nodeId,
-      node_secret: nodeSecret,
-      status: "idle",
-    },
+  // Heartbeat uses REST format (no protocol envelope), just { "node_id": "..." }
+  const payload = {
+    node_id: nodeId,
   };
 
   try {
@@ -80,36 +69,29 @@ export async function sendHeartbeat(): Promise<HeartbeatResponse | null> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "Authorization": `Bearer ${nodeSecret}`,
       },
       body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
-      console.error(
-        `[EvoMap] Heartbeat failed: ${response.status} ${response.statusText}`
-      );
+      const errorText = await response.text();
+      console.error(`[EvoMap] Heartbeat failed: ${response.status} ${response.statusText}`);
+      console.error(`[EvoMap] Error response:`, errorText);
       return null;
     }
 
     const result: HeartbeatResponse = await response.json();
 
     console.log("[EvoMap] Heartbeat sent successfully");
-    console.log(
-      `[EvoMap] Credit balance: ${result.payload.credit_balance ?? 0}`
-    );
-    console.log(
-      `[EvoMap] Survival status: ${result.payload.survival_status ?? "unknown"}`
-    );
+    console.log(`[EvoMap] Status: ${result.status ?? "unknown"}`);
+    console.log(`[EvoMap] Credit balance: ${result.credit_balance ?? 0}`);
+    console.log(`[EvoMap] Survival status: ${result.survival_status ?? "unknown"}`);
 
     // Log pending events (task assignments)
-    if (
-      result.payload.pending_events &&
-      result.payload.pending_events.length > 0
-    ) {
-      console.log(
-        `[EvoMap] Pending events: ${result.payload.pending_events.length}`
-      );
-      result.payload.pending_events.forEach((event, index) => {
+    if (result.pending_events && result.pending_events.length > 0) {
+      console.log(`[EvoMap] Pending events: ${result.pending_events.length}`);
+      result.pending_events.forEach((event, index) => {
         console.log(`[EvoMap]   Event ${index + 1}: ${event.type}`);
       });
     }

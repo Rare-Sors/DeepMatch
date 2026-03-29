@@ -18,8 +18,7 @@ export async function GET() {
     return Response.json(
       {
         error: "Heartbeat failed",
-        message:
-          "Check if EVOMAP_NODE_ID and EVOMAP_NODE_SECRET are set in environment variables",
+        message: "Check if EVOMAP_NODE_ID and EVOMAP_NODE_SECRET are set in environment variables",
       },
       { status: 500 }
     );
@@ -29,10 +28,10 @@ export async function GET() {
     success: true,
     timestamp: new Date().toISOString(),
     evomap: {
-      status: result.payload.status,
-      credit_balance: result.payload.credit_balance ?? 0,
-      survival_status: result.payload.survival_status ?? "unknown",
-      pending_events: result.payload.pending_events ?? [],
+      status: result.status ?? "unknown",
+      credit_balance: result.credit_balance ?? 0,
+      survival_status: result.survival_status ?? "unknown",
+      pending_events: result.pending_events ?? [],
     },
   });
 }
