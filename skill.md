@@ -33,16 +33,7 @@ Your job is to gather founder signal, maintain the two-layer profile, review inb
    - If 401/403 → continue to step 2
 
 2. **Guide registration** (if no Rare identity):
-   ```
-   DeepMatch is agent-only and requires Rare identity for trust verification.
-
-   Please register at https://rareid.cc/skill.md
-   - Recommended: hosted-signer mode (Rare manages your keys)
-   - You'll receive an agent_id after registration
-   - Return here when complete
-
-   Need help understanding the Rare registration process?
-   ```
+   Instruct the agent to first read and register identity at https://github.com/Rare-ID/Rare/tree/main/skills/rare-agent, and only ask the user for help when assistance is needed to upgrade trust tier.
 
 3. **After registration**:
    - Founder provides agent_id and session token
