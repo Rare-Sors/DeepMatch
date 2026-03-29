@@ -602,6 +602,34 @@ test("dashboard access links can be reopened before expiry and keep the same vie
   assert.equal(reopened!.sessionToken, viewer!.sessionToken);
 });
 
+test("dashboard access links remain consumable after the in-memory store resets", () => {
+  deepMatchStore.upsertSession({
+    sessionToken: "issuer_cross_instance",
+    agentId: "issuer_cross_instance",
+    identityMode: "full",
+    role: "agent",
+    rawLevel: "L1",
+    level: "L1",
+    displayName: "Issuer Cross Instance",
+    sessionPubkey: "pub_cross_instance",
+    lastSeenAt: new Date().toISOString(),
+  });
+
+  const link = deepMatchStore.createDashboardAccessLink("issuer_cross_instance", 60);
+  assert.ok(link);
+
+  deepMatchStore.reset();
+
+  const viewer = deepMatchStore.consumeDashboardAccessLink(
+    link!.token,
+    DASHBOARD_SESSION_MAX_AGE_SECONDS,
+  );
+
+  assert.ok(viewer);
+  assert.equal(viewer!.role, "viewer");
+  assert.equal(viewer!.agentId, "issuer_cross_instance");
+});
+
 test("viewer sessions cannot perform write actions", async () => {
   const session = deepMatchStore.upsertSession({
     sessionToken: "viewer_session",
@@ -698,6 +726,33 @@ test("dashboard access route tolerates repeated opens for the same token", async
   assert.equal(second.headers.get("location"), "http://localhost/dashboard");
   assert.ok(first.headers.get("set-cookie"));
   assert.ok(second.headers.get("set-cookie"));
+});
+
+test("dashboard access route accepts a valid link after the local store resets", async () => {
+  deepMatchStore.upsertSession({
+    sessionToken: "agent_route_cross_instance",
+    agentId: "route_cross_instance",
+    identityMode: "full",
+    role: "agent",
+    rawLevel: "L1",
+    level: "L1",
+    displayName: "Route Cross Instance",
+    sessionPubkey: "pub_route_cross_instance",
+    lastSeenAt: new Date().toISOString(),
+  });
+
+  const link = deepMatchStore.createDashboardAccessLink("route_cross_instance", 60);
+  assert.ok(link);
+
+  deepMatchStore.reset();
+
+  const response = await consumeDashboardAccessLink(
+    new NextRequest(`http://localhost/dashboard/access?token=${encodeURIComponent(link!.token)}`),
+  );
+
+  assert.equal(response.status, 307);
+  assert.equal(response.headers.get("location"), "http://localhost/dashboard");
+  assert.ok(response.headers.get("set-cookie"));
 });
 
 test("first onboarding profile upsert returns an initial dashboard link", async () => {

@@ -3,7 +3,9 @@ import { NextResponse } from "next/server";
 
 import {
   attachDashboardSessionCookie,
+  createDashboardViewerSessionToken,
   DASHBOARD_SESSION_MAX_AGE_SECONDS,
+  readDashboardAccessToken,
 } from "@/lib/dashboard-access";
 import { deepMatchStore } from "@/lib/store";
 
@@ -14,6 +16,17 @@ export async function GET(request: NextRequest) {
   if (!token) {
     redirectUrl.searchParams.set("access", "invalid");
     return NextResponse.redirect(redirectUrl);
+  }
+
+  const signedAccess = readDashboardAccessToken(token);
+  if (signedAccess) {
+    const response = NextResponse.redirect(redirectUrl);
+    const viewerSession = createDashboardViewerSessionToken(
+      signedAccess,
+      DASHBOARD_SESSION_MAX_AGE_SECONDS,
+    );
+
+    return attachDashboardSessionCookie(response, viewerSession.token);
   }
 
   const session = deepMatchStore.consumeDashboardAccessLink(

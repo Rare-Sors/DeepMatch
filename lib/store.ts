@@ -1,4 +1,5 @@
 import { buildFitMemo } from "@/lib/precomm/fit-memo";
+import { createDashboardAccessToken, readDashboardAccessToken } from "@/lib/dashboard-access";
 import { HttpError } from "@/lib/http";
 import { capTrustTierForIdentityMode, dailyMatchQuotaForTier, hasTier, priorityRankForTier } from "@/lib/permissions";
 import { getSuggestedMatchingNextStep, shouldCreateMutualMatch } from "@/lib/matching/state-machine";
@@ -420,7 +421,9 @@ export const deepMatchStore = {
 
   createDashboardAccessLink(agentId: string, expiresInSeconds: number) {
     const state = getState();
-    if (!state.agents.has(agentId)) {
+    const agent = state.agents.get(agentId);
+    const trustTier = state.trustTiers.get(agentId);
+    if (!agent || !trustTier) {
       return null;
     }
 
@@ -428,7 +431,15 @@ export const deepMatchStore = {
       state.dashboardAccessLinks.delete(link.token);
     }
 
-    const token = createId("dlink");
+    const token = createDashboardAccessToken({
+      agentId,
+      identityMode: agent.identityMode,
+      rawLevel: trustTier.rawLevel,
+      level: trustTier.effectiveLevel,
+      displayName: agent.displayName,
+      viewerSessionId: createId("viewer"),
+      expiresAt: Math.floor(Date.now() / 1000) + expiresInSeconds,
+    });
     const record = {
       token,
       agentId,
@@ -441,6 +452,22 @@ export const deepMatchStore = {
   },
 
   consumeDashboardAccessLink(token: string, sessionDurationSeconds: number) {
+    const signedClaims = readDashboardAccessToken(token);
+    if (signedClaims) {
+      return {
+        sessionToken: signedClaims.viewerSessionId,
+        agentId: signedClaims.agentId,
+        identityMode: signedClaims.identityMode,
+        role: "viewer" as const,
+        rawLevel: signedClaims.rawLevel,
+        level: signedClaims.level,
+        displayName: signedClaims.displayName,
+        sessionPubkey: "",
+        lastSeenAt: nowIso(),
+        expiresAt: Math.floor(Date.now() / 1000) + sessionDurationSeconds,
+      };
+    }
+
     const reusableSession = getReusableDashboardSessionByToken(token);
     if (reusableSession) {
       return reusableSession;

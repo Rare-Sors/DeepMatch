@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 
-import { DASHBOARD_SESSION_COOKIE } from "@/lib/dashboard-access";
+import { DASHBOARD_SESSION_COOKIE, readDashboardViewerSession } from "@/lib/dashboard-access";
 import { HttpError } from "@/lib/http";
 import { capabilitySummaryForTier, upgradeHintForTier } from "@/lib/permissions";
 import type { RareActionEnvelope } from "@/lib/rare/auth";
@@ -27,7 +27,7 @@ export function requireSession(request: NextRequest): RareSession | null {
     return null;
   }
 
-  return deepMatchStore.getSession(sessionToken) ?? null;
+  return deepMatchStore.getSession(sessionToken) ?? readDashboardViewerSession(sessionToken);
 }
 
 export async function authorizeWrite(

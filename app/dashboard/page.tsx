@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 
 import { DashboardPage } from "@/components/dashboard-page";
-import { DASHBOARD_SESSION_COOKIE } from "@/lib/dashboard-access";
+import { DASHBOARD_SESSION_COOKIE, readDashboardViewerSession } from "@/lib/dashboard-access";
 import { deepMatchStore } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,9 @@ export default async function DashboardRoute({
 }) {
   const params = await searchParams;
   const sessionToken = (await cookies()).get(DASHBOARD_SESSION_COOKIE)?.value?.trim() ?? "";
-  const initialSession = sessionToken ? deepMatchStore.getSession(sessionToken) ?? null : null;
+  const initialSession = sessionToken
+    ? deepMatchStore.getSession(sessionToken) ?? readDashboardViewerSession(sessionToken)
+    : null;
   const initialInbox = initialSession ? deepMatchStore.listInbox(initialSession.agentId) : null;
   const initialProfiles = deepMatchStore.listPublicProfiles();
   const initialStatus = initialSession
