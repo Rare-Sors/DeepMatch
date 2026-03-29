@@ -9,13 +9,13 @@ export async function GET(
   request: NextRequest,
   context: { params: Promise<{ matchId: string }> },
 ) {
-  const session = requireSession(request);
+  const session = await requireSession(request);
   if (!session) {
     return unauthorized();
   }
 
   const { matchId } = await context.params;
-  const messages = deepMatchStore.listPreCommunicationMessages(matchId, session.agentId);
+  const messages = await deepMatchStore.listPreCommunicationMessages(matchId, session.agentId);
   if (!messages) {
     return notFound("Pre-communication thread not found.");
   }
@@ -27,7 +27,7 @@ export async function POST(
   request: NextRequest,
   context: { params: Promise<{ matchId: string }> },
 ) {
-  const session = requireSession(request);
+  const session = await requireSession(request);
   if (!session) {
     return unauthorized();
   }
@@ -47,7 +47,7 @@ export async function POST(
     );
 
     const { matchId } = await context.params;
-    const result = deepMatchStore.addPreCommunicationMessage(
+    const result = await deepMatchStore.addPreCommunicationMessage(
       matchId,
       session.agentId,
       payload.data.topic,

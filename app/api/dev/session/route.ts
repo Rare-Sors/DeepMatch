@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     return badRequest("Invalid dev session payload.", payload.error.flatten());
   }
 
-  const session = deepMatchStore.upsertSession({
+  const session = await deepMatchStore.upsertSession({
     sessionToken: payload.data.sessionToken ?? createId("dev_session"),
     agentId: payload.data.agentId,
     identityMode: payload.data.identityMode,
@@ -39,6 +39,6 @@ export async function POST(request: Request) {
 
   return ok({
     session,
-    trustTier: deepMatchStore.getTrustTier(session.agentId),
+    trustTier: await deepMatchStore.getTrustTier(session.agentId),
   });
 }

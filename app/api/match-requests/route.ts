@@ -6,7 +6,7 @@ import { deepMatchStore } from "@/lib/store";
 import { matchRequestSchema } from "@/lib/validation";
 
 export async function POST(request: NextRequest) {
-  const session = requireSession(request);
+  const session = await requireSession(request);
   if (!session) {
     return unauthorized();
   }
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     }
 
     return ok(
-      deepMatchStore.createMatchRequest(session.agentId, {
+      await deepMatchStore.createMatchRequest(session.agentId, {
         targetAgentId: payload.data.targetAgentId,
         justification: payload.data.justification,
         attractivePoints: payload.data.attractivePoints,

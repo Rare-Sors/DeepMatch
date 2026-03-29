@@ -8,14 +8,14 @@ import { deepMatchStore } from "@/lib/store";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = requireSession(request);
+    const session = await requireSession(request);
     if (!session) {
       return unauthorized();
     }
 
     await authorizeWrite(request, session, "L0");
 
-    const link = deepMatchStore.createDashboardAccessLink(
+    const link = await deepMatchStore.createDashboardAccessLink(
       session.agentId,
       DASHBOARD_ACCESS_LINK_MAX_AGE_SECONDS,
     );

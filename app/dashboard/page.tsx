@@ -14,10 +14,10 @@ export default async function DashboardRoute({
   const params = await searchParams;
   const sessionToken = (await cookies()).get(DASHBOARD_SESSION_COOKIE)?.value?.trim() ?? "";
   const initialSession = sessionToken
-    ? deepMatchStore.getSession(sessionToken) ?? readDashboardViewerSession(sessionToken)
+    ? (await deepMatchStore.getSession(sessionToken)) ?? readDashboardViewerSession(sessionToken)
     : null;
-  const initialInbox = initialSession ? deepMatchStore.listInbox(initialSession.agentId) : null;
-  const initialProfiles = deepMatchStore.listPublicProfiles();
+  const initialInbox = initialSession ? await deepMatchStore.listInbox(initialSession.agentId) : null;
+  const initialProfiles = await deepMatchStore.listPublicProfiles();
   const initialStatus = initialSession
     ? initialSession.role === "viewer"
       ? "Viewer access"

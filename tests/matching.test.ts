@@ -21,8 +21,8 @@ import { GET as consumeDashboardAccessLink } from "../app/dashboard/access/route
 import { GET as getInbox } from "../app/api/matches/inbox/route.ts";
 import type { MatchRecord, PreCommunicationMessage } from "../types/domain.ts";
 
-beforeEach(() => {
-  deepMatchStore.reset();
+beforeEach(async () => {
+  await deepMatchStore.reset();
 });
 
 function buildProfilePayload(suffix: string) {
@@ -139,18 +139,18 @@ function buildLegacyNestedProfilePayload() {
   };
 }
 
-test("public identity caps L2 to L1", () => {
+test("public identity caps L2 to L1", async () => {
   assert.equal(capTrustTierForIdentityMode("L2", "public"), "L1");
   assert.equal(capTrustTierForIdentityMode("L2", "full"), "L2");
 });
 
-test("minimum trust tier checks are ordered correctly", () => {
+test("minimum trust tier checks are ordered correctly", async () => {
   assert.equal(hasTier("L1", "L0"), true);
   assert.equal(hasTier("L0", "L1"), false);
   assert.equal(hasTier("L2", "L1"), true);
 });
 
-test("mutual positive intent creates matches", () => {
+test("mutual positive intent creates matches", async () => {
   assert.equal(
     shouldCreateMutualMatch({ status: "pending" }, { status: "pending" }),
     true,
@@ -161,7 +161,7 @@ test("mutual positive intent creates matches", () => {
   );
 });
 
-test("matching workflow is inbox-first before scanning profiles", () => {
+test("matching workflow is inbox-first before scanning profiles", async () => {
   assert.deepEqual(
     getSuggestedMatchingNextStep({
       incomingRequests: [{ status: "pending" }],
@@ -195,7 +195,7 @@ test("matching workflow is inbox-first before scanning profiles", () => {
   );
 });
 
-test("fit memo captures complements, risks, and open questions", () => {
+test("fit memo captures complements, risks, and open questions", async () => {
   const match: MatchRecord = {
     id: "match_1",
     participantAgentIds: ["agent_a", "agent_b"],
@@ -242,10 +242,10 @@ test("fit memo captures complements, risks, and open questions", () => {
   assert.equal(memo.openQuestions.length > 0, true);
 });
 
-test("simulated founder flow reaches mutual match, pre-comm, memo, and handoff", () => {
+test("simulated founder flow reaches mutual match, pre-comm, memo, and handoff", async () => {
   const now = new Date().toISOString();
 
-  const alice = deepMatchStore.upsertSession({
+  const alice = await deepMatchStore.upsertSession({
     sessionToken: "sim_alice",
     agentId: "sim_agent_alice",
     identityMode: "full",
@@ -257,7 +257,7 @@ test("simulated founder flow reaches mutual match, pre-comm, memo, and handoff",
     lastSeenAt: now,
   });
 
-  const bob = deepMatchStore.upsertSession({
+  const bob = await deepMatchStore.upsertSession({
     sessionToken: "sim_bob",
     agentId: "sim_agent_bob",
     identityMode: "full",
@@ -269,7 +269,7 @@ test("simulated founder flow reaches mutual match, pre-comm, memo, and handoff",
     lastSeenAt: now,
   });
 
-  deepMatchStore.upsertProfile(alice.agentId, {
+  await deepMatchStore.upsertProfile(alice.agentId, {
     publicProfile: {
       founderName: "Alice Chen",
       baseLocation: "Singapore",
@@ -313,7 +313,7 @@ test("simulated founder flow reaches mutual match, pre-comm, memo, and handoff",
     },
   });
 
-  deepMatchStore.upsertProfile(bob.agentId, {
+  await deepMatchStore.upsertProfile(bob.agentId, {
     publicProfile: {
       founderName: "Bob Lin",
       baseLocation: "Singapore",
@@ -357,10 +357,10 @@ test("simulated founder flow reaches mutual match, pre-comm, memo, and handoff",
     },
   });
 
-  const aliceInboxBefore = deepMatchStore.listInbox(alice.agentId);
+  const aliceInboxBefore = await deepMatchStore.listInbox(alice.agentId);
   assert.equal(aliceInboxBefore.suggestedNextStep, "scan_profiles");
 
-  const outbound = deepMatchStore.createMatchRequest(alice.agentId, {
+  const outbound = await deepMatchStore.createMatchRequest(alice.agentId, {
     targetAgentId: bob.agentId,
     justification: "Strong engineering and GTM complement with aligned workflow thesis.",
     attractivePoints: ["AI systems depth", "full-time commitment"],
@@ -368,35 +368,35 @@ test("simulated founder flow reaches mutual match, pre-comm, memo, and handoff",
     classification: "strong fit",
   });
 
-  const bobInbox = deepMatchStore.listInbox(bob.agentId);
+  const bobInbox = await deepMatchStore.listInbox(bob.agentId);
   assert.equal(bobInbox.suggestedNextStep, "review_inbox");
   assert.equal(bobInbox.incomingRequests.length > 0, true);
 
-  const mutual = deepMatchStore.respondToMatchRequest(outbound.request.id, bob.agentId, true);
+  const mutual = await deepMatchStore.respondToMatchRequest(outbound.request.id, bob.agentId, true);
   assert.ok(mutual?.match);
 
-  const aliceInboxAfter = deepMatchStore.listInbox(alice.agentId);
+  const aliceInboxAfter = await deepMatchStore.listInbox(alice.agentId);
   assert.equal(aliceInboxAfter.suggestedNextStep, "start_pre_communication");
 
-  const details = deepMatchStore.getDetailProfilesForMatch(mutual!.match!.id, alice.agentId);
+  const details = await deepMatchStore.getDetailProfilesForMatch(mutual!.match!.id, alice.agentId);
   assert.ok(details);
   assert.equal(details!.profiles.length, 2);
 
-  deepMatchStore.addPreCommunicationMessage(
+  await deepMatchStore.addPreCommunicationMessage(
     mutual!.match!.id,
     alice.agentId,
     "direction",
     "prompt",
     "Why now for this workflow wedge, and what should the first beachhead be?",
   );
-  deepMatchStore.addPreCommunicationMessage(
+  await deepMatchStore.addPreCommunicationMessage(
     mutual!.match!.id,
     bob.agentId,
     "role",
     "reply",
     "I can own engineering and reliability while you drive customer discovery and GTM.",
   );
-  deepMatchStore.addPreCommunicationMessage(
+  await deepMatchStore.addPreCommunicationMessage(
     mutual!.match!.id,
     alice.agentId,
     "risk",
@@ -404,17 +404,17 @@ test("simulated founder flow reaches mutual match, pre-comm, memo, and handoff",
     "Main risk: we should validate decision cadence through a 2-week trial sprint.",
   );
 
-  const memo = deepMatchStore.generateFitMemo(mutual!.match!.id, alice.agentId);
+  const memo = await deepMatchStore.generateFitMemo(mutual!.match!.id, alice.agentId);
   assert.ok(memo);
   assert.equal(memo!.humanMeetingRecommendation, true);
 
-  const handoff = deepMatchStore.unlockHandoff(mutual!.match!.id, alice.agentId);
+  const handoff = await deepMatchStore.unlockHandoff(mutual!.match!.id, alice.agentId);
   assert.ok(handoff);
   assert.equal(handoff!.contactExchangeStatus, "ready");
 });
 
-test("expired sessions are rejected by the local session store", () => {
-  deepMatchStore.upsertSession({
+test("expired sessions are rejected by the local session store", async () => {
+  await deepMatchStore.upsertSession({
     sessionToken: "expired_session",
     agentId: "expired_agent",
     identityMode: "full",
@@ -427,13 +427,13 @@ test("expired sessions are rejected by the local session store", () => {
     expiresAt: Math.floor(Date.now() / 1000) - 30,
   });
 
-  assert.equal(deepMatchStore.getSession("expired_session"), undefined);
+  assert.equal(await deepMatchStore.getSession("expired_session"), undefined);
 });
 
-test("profile trust tier follows the latest agent level instead of an older session", () => {
+test("profile trust tier follows the latest agent level instead of an older session", async () => {
   const now = new Date().toISOString();
 
-  deepMatchStore.upsertSession({
+  await deepMatchStore.upsertSession({
     sessionToken: "old_public",
     agentId: "agent_upgrade",
     identityMode: "public",
@@ -445,7 +445,7 @@ test("profile trust tier follows the latest agent level instead of an older sess
     lastSeenAt: now,
   });
 
-  deepMatchStore.upsertSession({
+  await deepMatchStore.upsertSession({
     sessionToken: "new_full",
     agentId: "agent_upgrade",
     identityMode: "full",
@@ -457,7 +457,7 @@ test("profile trust tier follows the latest agent level instead of an older sess
     lastSeenAt: now,
   });
 
-  const result = deepMatchStore.upsertProfile("agent_upgrade", {
+  const result = await deepMatchStore.upsertProfile("agent_upgrade", {
     publicProfile: {
       headline: "Founder upgrading to full identity",
       oneLineThesis: "Need a better governance signal",
@@ -500,10 +500,10 @@ test("profile trust tier follows the latest agent level instead of an older sess
   assert.equal(result.publicProfile.trustTier, "L2");
 });
 
-test("daily match quota is enforced for L1 agents", () => {
+test("daily match quota is enforced for L1 agents", async () => {
   const now = new Date().toISOString();
 
-  deepMatchStore.upsertSession({
+  await deepMatchStore.upsertSession({
     sessionToken: "quota_owner",
     agentId: "quota_owner",
     identityMode: "full",
@@ -517,7 +517,7 @@ test("daily match quota is enforced for L1 agents", () => {
 
   for (let index = 0; index < 9; index += 1) {
     const targetAgentId = `quota_target_${index}`;
-    deepMatchStore.upsertSession({
+    await deepMatchStore.upsertSession({
       sessionToken: `quota_session_${index}`,
       agentId: targetAgentId,
       identityMode: "full",
@@ -531,7 +531,7 @@ test("daily match quota is enforced for L1 agents", () => {
   }
 
   for (let index = 0; index < 8; index += 1) {
-    const result = deepMatchStore.createMatchRequest("quota_owner", {
+    const result = await deepMatchStore.createMatchRequest("quota_owner", {
       targetAgentId: `quota_target_${index}`,
       justification: "Quota test",
       attractivePoints: ["signal"],
@@ -541,7 +541,7 @@ test("daily match quota is enforced for L1 agents", () => {
     assert.equal(result.request.targetAgentId, `quota_target_${index}`);
   }
 
-  assert.throws(
+  await assert.rejects(
     () =>
       deepMatchStore.createMatchRequest("quota_owner", {
         targetAgentId: "quota_target_8",
@@ -570,8 +570,8 @@ test("http errors map to the original status code instead of becoming 500s", asy
   assert.deepEqual(json.details, { currentTier: "L0", requiredTier: "L1" });
 });
 
-test("dashboard access links can be reopened before expiry and keep the same viewer session", () => {
-  deepMatchStore.upsertSession({
+test("dashboard access links can be reopened before expiry and keep the same viewer session", async () => {
+  await deepMatchStore.upsertSession({
     sessionToken: "issuer_session",
     agentId: "issuer_agent",
     identityMode: "full",
@@ -583,10 +583,10 @@ test("dashboard access links can be reopened before expiry and keep the same vie
     lastSeenAt: new Date().toISOString(),
   });
 
-  const link = deepMatchStore.createDashboardAccessLink("issuer_agent", 60);
+  const link = await deepMatchStore.createDashboardAccessLink("issuer_agent", 60);
   assert.ok(link);
 
-  const viewer = deepMatchStore.consumeDashboardAccessLink(
+  const viewer = await deepMatchStore.consumeDashboardAccessLink(
     link!.token,
     DASHBOARD_SESSION_MAX_AGE_SECONDS,
   );
@@ -597,13 +597,13 @@ test("dashboard access links can be reopened before expiry and keep the same vie
     true,
   );
 
-  const reopened = deepMatchStore.consumeDashboardAccessLink(link!.token, 60);
+  const reopened = await deepMatchStore.consumeDashboardAccessLink(link!.token, 60);
   assert.ok(reopened);
   assert.equal(reopened!.sessionToken, viewer!.sessionToken);
 });
 
-test("dashboard access links remain consumable after the in-memory store resets", () => {
-  deepMatchStore.upsertSession({
+test("dashboard access links remain consumable after the in-memory store resets", async () => {
+  await deepMatchStore.upsertSession({
     sessionToken: "issuer_cross_instance",
     agentId: "issuer_cross_instance",
     identityMode: "full",
@@ -615,12 +615,12 @@ test("dashboard access links remain consumable after the in-memory store resets"
     lastSeenAt: new Date().toISOString(),
   });
 
-  const link = deepMatchStore.createDashboardAccessLink("issuer_cross_instance", 60);
+  const link = await deepMatchStore.createDashboardAccessLink("issuer_cross_instance", 60);
   assert.ok(link);
 
-  deepMatchStore.reset();
+  await deepMatchStore.reset();
 
-  const viewer = deepMatchStore.consumeDashboardAccessLink(
+  const viewer = await deepMatchStore.consumeDashboardAccessLink(
     link!.token,
     DASHBOARD_SESSION_MAX_AGE_SECONDS,
   );
@@ -631,7 +631,7 @@ test("dashboard access links remain consumable after the in-memory store resets"
 });
 
 test("viewer sessions cannot perform write actions", async () => {
-  const session = deepMatchStore.upsertSession({
+  const session = await deepMatchStore.upsertSession({
     sessionToken: "viewer_session",
     agentId: "viewer_agent",
     identityMode: "full",
@@ -657,7 +657,7 @@ test("viewer sessions cannot perform write actions", async () => {
 });
 
 test("dashboard access route sets a cookie and inbox route accepts it", async () => {
-  deepMatchStore.upsertSession({
+  await deepMatchStore.upsertSession({
     sessionToken: "agent_source",
     agentId: "cookie_agent",
     identityMode: "full",
@@ -669,7 +669,7 @@ test("dashboard access route sets a cookie and inbox route accepts it", async ()
     lastSeenAt: new Date().toISOString(),
   });
 
-  const link = deepMatchStore.createDashboardAccessLink("cookie_agent", 60);
+  const link = await deepMatchStore.createDashboardAccessLink("cookie_agent", 60);
   assert.ok(link);
 
   const consumeResponse = await consumeDashboardAccessLink(
@@ -698,7 +698,7 @@ test("dashboard access route sets a cookie and inbox route accepts it", async ()
 });
 
 test("dashboard access route tolerates repeated opens for the same token", async () => {
-  deepMatchStore.upsertSession({
+  await deepMatchStore.upsertSession({
     sessionToken: "agent_repeat_open",
     agentId: "repeat_open_agent",
     identityMode: "full",
@@ -710,7 +710,7 @@ test("dashboard access route tolerates repeated opens for the same token", async
     lastSeenAt: new Date().toISOString(),
   });
 
-  const link = deepMatchStore.createDashboardAccessLink("repeat_open_agent", 60);
+  const link = await deepMatchStore.createDashboardAccessLink("repeat_open_agent", 60);
   assert.ok(link);
 
   const first = await consumeDashboardAccessLink(
@@ -729,7 +729,7 @@ test("dashboard access route tolerates repeated opens for the same token", async
 });
 
 test("dashboard access route accepts a valid link after the local store resets", async () => {
-  deepMatchStore.upsertSession({
+  await deepMatchStore.upsertSession({
     sessionToken: "agent_route_cross_instance",
     agentId: "route_cross_instance",
     identityMode: "full",
@@ -741,10 +741,10 @@ test("dashboard access route accepts a valid link after the local store resets",
     lastSeenAt: new Date().toISOString(),
   });
 
-  const link = deepMatchStore.createDashboardAccessLink("route_cross_instance", 60);
+  const link = await deepMatchStore.createDashboardAccessLink("route_cross_instance", 60);
   assert.ok(link);
 
-  deepMatchStore.reset();
+  await deepMatchStore.reset();
 
   const response = await consumeDashboardAccessLink(
     new NextRequest(`http://localhost/dashboard/access?token=${encodeURIComponent(link!.token)}`),
@@ -756,7 +756,7 @@ test("dashboard access route accepts a valid link after the local store resets",
 });
 
 test("first onboarding profile upsert returns an initial dashboard link", async () => {
-  const session = deepMatchStore.upsertSession({
+  const session = await deepMatchStore.upsertSession({
     sessionToken: "onboarding_agent",
     agentId: "onboarding_agent",
     identityMode: "full",
@@ -801,7 +801,7 @@ test("first onboarding profile upsert returns an initial dashboard link", async 
 });
 
 test("profile upsert accepts legacy nested payload and normalizes it", async () => {
-  const session = deepMatchStore.upsertSession({
+  const session = await deepMatchStore.upsertSession({
     sessionToken: "legacy_payload_agent",
     agentId: "legacy_payload_agent",
     identityMode: "full",
@@ -839,7 +839,7 @@ test("profile upsert accepts legacy nested payload and normalizes it", async () 
 });
 
 test("heartbeat returns not_due when the current viewer session is still healthy", async () => {
-  const agent = deepMatchStore.upsertSession({
+  const agent = await deepMatchStore.upsertSession({
     sessionToken: "heartbeat_agent_not_due",
     agentId: "heartbeat_agent_not_due",
     identityMode: "full",
@@ -851,7 +851,7 @@ test("heartbeat returns not_due when the current viewer session is still healthy
     lastSeenAt: new Date().toISOString(),
   });
 
-  deepMatchStore.upsertSession({
+  await deepMatchStore.upsertSession({
     sessionToken: "heartbeat_viewer_not_due",
     agentId: agent.agentId,
     identityMode: "full",
@@ -881,7 +881,7 @@ test("heartbeat returns not_due when the current viewer session is still healthy
 });
 
 test("heartbeat reuses a pending link when the viewer session is near expiry", async () => {
-  const agent = deepMatchStore.upsertSession({
+  const agent = await deepMatchStore.upsertSession({
     sessionToken: "heartbeat_agent_pending",
     agentId: "heartbeat_agent_pending",
     identityMode: "full",
@@ -893,7 +893,7 @@ test("heartbeat reuses a pending link when the viewer session is near expiry", a
     lastSeenAt: new Date().toISOString(),
   });
 
-  deepMatchStore.upsertSession({
+  await deepMatchStore.upsertSession({
     sessionToken: "heartbeat_viewer_pending",
     agentId: agent.agentId,
     identityMode: "full",
@@ -906,7 +906,7 @@ test("heartbeat reuses a pending link when the viewer session is near expiry", a
     expiresAt: Math.floor(Date.now() / 1000) + 120,
   });
 
-  const pendingLink = deepMatchStore.createDashboardAccessLink(agent.agentId, 600);
+  const pendingLink = await deepMatchStore.createDashboardAccessLink(agent.agentId, 600);
   assert.ok(pendingLink);
 
   const response = await heartbeatDashboardAccess(
@@ -926,7 +926,7 @@ test("heartbeat reuses a pending link when the viewer session is near expiry", a
 });
 
 test("heartbeat creates a new link when the dashboard session is expiring and no link is pending", async () => {
-  const agent = deepMatchStore.upsertSession({
+  const agent = await deepMatchStore.upsertSession({
     sessionToken: "heartbeat_agent_create",
     agentId: "heartbeat_agent_create",
     identityMode: "full",
@@ -938,7 +938,7 @@ test("heartbeat creates a new link when the dashboard session is expiring and no
     lastSeenAt: new Date().toISOString(),
   });
 
-  deepMatchStore.upsertSession({
+  await deepMatchStore.upsertSession({
     sessionToken: "heartbeat_viewer_create",
     agentId: agent.agentId,
     identityMode: "full",

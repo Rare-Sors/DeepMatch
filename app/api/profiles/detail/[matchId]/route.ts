@@ -7,15 +7,15 @@ export async function GET(
   request: NextRequest,
   context: { params: Promise<{ matchId: string }> },
 ) {
-  const session = requireSession(request);
+  const session = await requireSession(request);
   if (!session) {
     return unauthorized();
   }
 
   const { matchId } = await context.params;
-  const details = deepMatchStore.getDetailProfilesForMatch(matchId, session.agentId);
+  const details = await deepMatchStore.getDetailProfilesForMatch(matchId, session.agentId);
   if (!details) {
-    const matchExists = deepMatchStore.listInbox(session.agentId).matches.some((match) => match.id === matchId);
+    const matchExists = (await deepMatchStore.listInbox(session.agentId)).matches.some((match) => match.id === matchId);
     return matchExists ? forbidden("Detail profiles unlock only after a mutual match.") : notFound("Match not found.");
   }
 

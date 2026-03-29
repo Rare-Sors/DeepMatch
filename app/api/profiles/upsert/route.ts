@@ -9,7 +9,7 @@ import { badRequest, errorResponse, ok, unauthorized } from "@/lib/http";
 import { profileUpsertSchema } from "@/lib/validation";
 
 export async function POST(request: NextRequest) {
-  const session = requireSession(request);
+  const session = await requireSession(request);
   if (!session) {
     return unauthorized();
   }
@@ -24,15 +24,15 @@ export async function POST(request: NextRequest) {
 
     await authorizeWrite(request, session, "L0", payload.data.actionVerification);
 
-    const existingProfile = deepMatchStore.getPublicProfile(session.agentId);
-    const result = deepMatchStore.upsertProfile(session.agentId, {
+    const existingProfile = await deepMatchStore.getPublicProfile(session.agentId);
+    const result = await deepMatchStore.upsertProfile(session.agentId, {
       publicProfile: payload.data.publicProfile,
       detailProfile: payload.data.detailProfile,
     });
 
     const initialAccessLink =
       !existingProfile && session.role === "agent"
-        ? deepMatchStore.createDashboardAccessLink(
+        ? await deepMatchStore.createDashboardAccessLink(
             session.agentId,
             DASHBOARD_ACCESS_LINK_MAX_AGE_SECONDS,
           )

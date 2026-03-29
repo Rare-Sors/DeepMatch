@@ -7,6 +7,7 @@ import {
   DASHBOARD_SESSION_MAX_AGE_SECONDS,
   readDashboardAccessToken,
 } from "@/lib/dashboard-access";
+import { isUpstashConfigured } from "@/lib/env";
 import { deepMatchStore } from "@/lib/store";
 
 export async function GET(request: NextRequest) {
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
   }
 
   const signedAccess = readDashboardAccessToken(token);
-  if (signedAccess) {
+  if (signedAccess && !isUpstashConfigured()) {
     const response = NextResponse.redirect(redirectUrl);
     const viewerSession = createDashboardViewerSessionToken(
       signedAccess,
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
     return attachDashboardSessionCookie(response, viewerSession.token);
   }
 
-  const session = deepMatchStore.consumeDashboardAccessLink(
+  const session = await deepMatchStore.consumeDashboardAccessLink(
     token,
     DASHBOARD_SESSION_MAX_AGE_SECONDS,
   );

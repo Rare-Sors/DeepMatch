@@ -9,7 +9,7 @@ export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
-  const session = requireSession(request);
+  const session = await requireSession(request);
   if (!session) {
     return unauthorized();
   }
@@ -29,7 +29,7 @@ export async function POST(
     );
 
     const { id } = await context.params;
-    const result = deepMatchStore.respondToMatchRequest(id, session.agentId, payload.data.accept);
+    const result = await deepMatchStore.respondToMatchRequest(id, session.agentId, payload.data.accept);
     if (!result) {
       return notFound("Match request not found.");
     }

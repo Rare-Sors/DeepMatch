@@ -7,6 +7,6 @@ export async function POST() {
     return forbidden("Dev-only route.");
   }
 
-  deepMatchStore.reset();
+  await deepMatchStore.reset();
   return ok({ reset: true });
 }

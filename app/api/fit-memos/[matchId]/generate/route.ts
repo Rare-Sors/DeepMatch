@@ -8,7 +8,7 @@ export async function POST(
   request: NextRequest,
   context: { params: Promise<{ matchId: string }> },
 ) {
-  const session = requireSession(request);
+  const session = await requireSession(request);
   if (!session) {
     return unauthorized();
   }
@@ -17,7 +17,7 @@ export async function POST(
     await authorizeWrite(request, session, "L1", undefined, "Generating a fit memo");
 
     const { matchId } = await context.params;
-    const memo = deepMatchStore.generateFitMemo(matchId, session.agentId);
+    const memo = await deepMatchStore.generateFitMemo(matchId, session.agentId);
     if (!memo) {
       return notFound("Match not found or inaccessible.");
     }

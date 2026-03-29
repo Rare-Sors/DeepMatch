@@ -4,8 +4,8 @@ import { deepMatchStore } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
-export default function Home() {
-  const profiles = deepMatchStore.listPublicProfiles();
+export default async function Home() {
+  const profiles = await deepMatchStore.listPublicProfiles();
   const initialProfiles = profiles.length ? profiles : demoProfiles;
 
   return (

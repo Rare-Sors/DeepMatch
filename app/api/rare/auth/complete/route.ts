@@ -48,8 +48,8 @@ export async function POST(request: Request) {
       );
     }
 
-    deepMatchStore.upsertSession(session);
-    const trustTier = deepMatchStore.getTrustTier(session.agentId);
+    await deepMatchStore.upsertSession(session);
+    const trustTier = await deepMatchStore.getTrustTier(session.agentId);
 
     const response = ok(createRareAuthCompleteResponse(session, trustTier));
 

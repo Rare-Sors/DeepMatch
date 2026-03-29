@@ -6,7 +6,7 @@ export async function GET(
   context: { params: Promise<{ agentId: string }> },
 ) {
   const { agentId } = await context.params;
-  const profile = deepMatchStore.getPublicProfile(agentId);
+  const profile = await deepMatchStore.getPublicProfile(agentId);
 
   if (!profile) {
     return notFound("Public profile not found.");

@@ -12,14 +12,14 @@ import { deepMatchStore } from "@/lib/store";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = requireSession(request);
+    const session = await requireSession(request);
     if (!session) {
       return unauthorized();
     }
 
     await authorizeWrite(request, session, "L0");
 
-    const heartbeat = deepMatchStore.heartbeatDashboardAccess(session.agentId, {
+    const heartbeat = await deepMatchStore.heartbeatDashboardAccess(session.agentId, {
       accessLinkTtlSeconds: DASHBOARD_ACCESS_LINK_MAX_AGE_SECONDS,
       refreshWindowSeconds: DASHBOARD_HEARTBEAT_REFRESH_WINDOW_SECONDS,
       sessionDurationSeconds: DASHBOARD_SESSION_MAX_AGE_SECONDS,

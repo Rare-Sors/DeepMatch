@@ -5,14 +5,14 @@ import { deepMatchStore } from "@/lib/store";
 import { ok, unauthorized } from "@/lib/http";
 
 export async function GET(request: NextRequest) {
-  const session = requireSession(request);
+  const session = await requireSession(request);
   if (!session) {
     return unauthorized();
   }
 
   return ok({
     session,
-    trustTier: deepMatchStore.getTrustTier(session.agentId),
-    inbox: deepMatchStore.listInbox(session.agentId),
+    trustTier: await deepMatchStore.getTrustTier(session.agentId),
+    inbox: await deepMatchStore.listInbox(session.agentId),
   });
 }

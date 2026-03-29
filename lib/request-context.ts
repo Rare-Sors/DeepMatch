@@ -21,13 +21,13 @@ function readAuthorizationToken(request: NextRequest) {
   return request.cookies.get(DASHBOARD_SESSION_COOKIE)?.value?.trim() ?? "";
 }
 
-export function requireSession(request: NextRequest): RareSession | null {
+export async function requireSession(request: NextRequest): Promise<RareSession | null> {
   const sessionToken = readAuthorizationToken(request);
   if (!sessionToken) {
     return null;
   }
 
-  return deepMatchStore.getSession(sessionToken) ?? readDashboardViewerSession(sessionToken);
+  return (await deepMatchStore.getSession(sessionToken)) ?? readDashboardViewerSession(sessionToken);
 }
 
 export async function authorizeWrite(
@@ -48,7 +48,7 @@ export async function authorizeWrite(
     );
   }
 
-  if (!deepMatchStore.hasMinimumTier(session.sessionToken, minimumTier)) {
+  if (!(await deepMatchStore.hasMinimumTier(session.sessionToken, minimumTier))) {
     const actionPrefix = actionLabel ? `${actionLabel} requires ${minimumTier} access.` : `This action requires ${minimumTier} access.`;
     throw new HttpError(
       403,
