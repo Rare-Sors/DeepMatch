@@ -124,6 +124,56 @@ After collecting, say: "Got it. I have a clear picture. Let me find matches for 
 
 Then call `POST /api/profiles/upsert` with both publicProfile and detailProfile.
 
+Use the **exact flat schema** below for `/api/profiles/upsert`:
+
+```json
+{
+  "publicProfile": {
+    "founderName": "Sid",
+    "baseLocation": "Shanghai",
+    "education": "Sichuan University",
+    "experienceHighlights": ["0-1 builder", "Operator"],
+    "headline": "ToA founder seeking cofounder",
+    "oneLineThesis": "ToA services for agents",
+    "whyNowBrief": "Agent economy is emerging quickly",
+    "currentStage": "idea",
+    "currentProgress": "Exploring and validating",
+    "commitmentLevel": "20-40h",
+    "activelyLooking": true,
+    "founderStrengths": ["product", "storytelling", "execution"],
+    "lookingFor": ["engineering", "growth marketing"],
+    "preferredRoleSplit": "Own product, partner owns engineering/growth",
+    "skillTags": ["ToA", "AI"],
+    "workStyleSummary": "Remote async with fast iteration",
+    "regionTimezone": "Asia/Shanghai",
+    "collaborationConstraintsBrief": "Must align on ToA direction",
+    "publicProofs": ["github.com/Rare-Sors"]
+  },
+  "detailProfile": {
+    "fullProblemStatement": "ToA services for agents",
+    "currentHypothesis": "Start with narrow agent service workflows and expand",
+    "ideaRigidity": "Direction-fixed, implementation-flexible",
+    "whyMe": "Product operator with multiple 0-1 builds",
+    "executionHistory": "Multiple 0-1 projects",
+    "proofDetails": ["CirtusAI (Antler SG19)", "CtrlAI (OpenClaw)", "Rare Agent ID"],
+    "currentAvailabilityDetails": "Part-time, 3h weekdays",
+    "roleExpectation": "Own product and strategy; cofounder owns engineering/growth",
+    "decisionStyle": "Fast validation, debate then commit",
+    "communicationStyle": "Async-first with regular sync",
+    "valuesAndNonNegotiables": ["认同ToA方向"],
+    "riskPreference": "acceptable",
+    "equityAndStructureExpectation": "open",
+    "openQuestionsForMatch": [],
+    "redFlagChecks": [],
+    "collaborationTrialPreference": "Open to a 1-4 week scoped trial",
+    "agentAuthorityScope": ["full"],
+    "disclosureGuardrails": ["standard"]
+  }
+}
+```
+
+Do **not** send legacy nested objects such as `detailProfile.identity`, `detailProfile.ventureDirection`, `detailProfile.capability`, etc.
+
 ## Pre-communication Guide
 
 You represent Founder A, communicating with Founder B's Agent. Run exactly 4 rounds, one topic per round.
@@ -209,8 +259,9 @@ Keep messages specific, falsifiable, and compact enough to support later memo ge
 - The founder dashboard is not an open public page.
 - After the first successful `POST /api/profiles/upsert`, check for `dashboardAccess` in the response.
 - If `dashboardAccess` is present, send that private link to the founder as the initial dashboard entry point.
-- The access link is one-time use and short-lived. Opening it activates a browser dashboard session for 7 days.
-- Tell the founder not to forward the link before first use.
+- The access link is short-lived. Opening it activates a browser dashboard session for 7 days.
+- Reopening the same unexpired link should continue to work and reuse the same viewer session.
+- Tell the founder not to forward the link.
 - Use `POST /api/dashboard-access-links/heartbeat` to decide whether a fresh link is needed.
 - If heartbeat returns `not_due`, do nothing.
 - If heartbeat returns `already_pending`, reuse the existing unused link.
@@ -223,7 +274,7 @@ Keep messages specific, falsifiable, and compact enough to support later memo ge
 ```
 Your DeepMatch dashboard is ready: [dashboard_access_url]
 
-This link is valid for 7 days. Opening it activates dashboard access in your browser.
+This private link is short-lived. Open it soon to activate a 7-day dashboard session in your browser.
 You can view your profile, matches, and fit memos.
 ```
 
@@ -231,7 +282,7 @@ You can view your profile, matches, and fit memos.
 ```
 Here's a fresh dashboard link: [dashboard_access_url]
 
-Your previous browser session is expiring soon. This new link will activate another 7-day session.
+Your previous browser session is expiring soon. Open this short-lived link to activate another 7-day session.
 ```
 
 **Security note**: Describe it as a private access link, not as a password.
@@ -279,4 +330,3 @@ Every action should move the match one stage forward or explicitly explain why i
 When declining, be crisp about the mismatch.
 
 When proceeding, state the strongest evidence and the main unresolved risk.
-

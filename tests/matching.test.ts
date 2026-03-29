@@ -71,6 +71,74 @@ function buildProfilePayload(suffix: string) {
   };
 }
 
+function buildLegacyNestedProfilePayload() {
+  return {
+    publicProfile: {
+      name: "Sid",
+      intent: "ToA founder seeking cofounder",
+      stage: "idea",
+      progress: "exploring",
+      commitment: "20-40h",
+      strengths: "product storytelling execution",
+      desiredCounterpart: "engineering or growth",
+      roleSplit: "product lead",
+      workStyle: "remote async",
+      region: "Shanghai",
+      constraints: "认同ToA方向",
+      publicProofs: ["github.com/Rare-Sors"],
+      freshness: "2026-03-29",
+    },
+    detailProfile: {
+      identity: {
+        name: "Sid",
+        location: "Shanghai",
+        timezone: "Asia/Shanghai",
+        occupation: "TPM at AI Lab",
+        currentFoundingStatus: "parttime exploration",
+        nearTermAvailability: "3h weekdays",
+      },
+      ventureDirection: {
+        problem: "ToA services for agents",
+        whyNow: "agent economy emerging",
+        stage: "idea",
+        progress: "exploring",
+        rigidity: "direction fixed",
+      },
+      capability: {
+        strengths: ["product", "storytelling", "execution"],
+        ownership: "product",
+        missing: ["engineering", "growth marketing"],
+        desiredCofounder: "strong engineer or growth marketer",
+      },
+      collaboration: {
+        workRhythm: "remote async",
+        decisionStyle: "fast validation",
+        communicationDensity: "medium",
+        conflictHandling: "stable",
+      },
+      constraints: {
+        location: "Shanghai remote",
+        time: "parttime",
+        industry: "ToA",
+        risk: "acceptable",
+        equityExpectations: "open",
+        nonNegotiables: ["认同ToA方向"],
+      },
+      credibility: {
+        publicProofs: ["CirtusAI (Antler SG19)", "CtrlAI (OpenClaw)", "Rare Agent ID"],
+        executionHistory: "multiple 0-1 projects",
+      },
+      experience: {
+        education: ["Sichuan University"],
+        workHistory: ["OKX", "Google", "ByteDance", "Kuaishou", "AI Lab"],
+        pastProjects: ["LiveX blockchain ticketing"],
+      },
+      agentAuthorityScope: "full",
+      disclosureGuardrails: "standard",
+    },
+  };
+}
+
 test("public identity caps L2 to L1", () => {
   assert.equal(capTrustTierForIdentityMode("L2", "public"), "L1");
   assert.equal(capTrustTierForIdentityMode("L2", "full"), "L2");
@@ -502,7 +570,7 @@ test("http errors map to the original status code instead of becoming 500s", asy
   assert.deepEqual(json.details, { currentTier: "L0", requiredTier: "L1" });
 });
 
-test("dashboard access links are one-time and mint weekly viewer sessions", () => {
+test("dashboard access links can be reopened before expiry and keep the same viewer session", () => {
   deepMatchStore.upsertSession({
     sessionToken: "issuer_session",
     agentId: "issuer_agent",
@@ -528,7 +596,10 @@ test("dashboard access links are one-time and mint weekly viewer sessions", () =
     viewer!.expiresAt! > Math.floor(Date.now() / 1000) + DASHBOARD_SESSION_MAX_AGE_SECONDS - 5,
     true,
   );
-  assert.equal(deepMatchStore.consumeDashboardAccessLink(link!.token, 60), null);
+
+  const reopened = deepMatchStore.consumeDashboardAccessLink(link!.token, 60);
+  assert.ok(reopened);
+  assert.equal(reopened!.sessionToken, viewer!.sessionToken);
 });
 
 test("viewer sessions cannot perform write actions", async () => {
@@ -598,6 +669,37 @@ test("dashboard access route sets a cookie and inbox route accepts it", async ()
   assert.equal(inboxJson.session.role, "viewer");
 });
 
+test("dashboard access route tolerates repeated opens for the same token", async () => {
+  deepMatchStore.upsertSession({
+    sessionToken: "agent_repeat_open",
+    agentId: "repeat_open_agent",
+    identityMode: "full",
+    role: "agent",
+    rawLevel: "L1",
+    level: "L1",
+    displayName: "Repeat Open Agent",
+    sessionPubkey: "pub_repeat_open",
+    lastSeenAt: new Date().toISOString(),
+  });
+
+  const link = deepMatchStore.createDashboardAccessLink("repeat_open_agent", 60);
+  assert.ok(link);
+
+  const first = await consumeDashboardAccessLink(
+    new NextRequest(`http://localhost/dashboard/access?token=${link!.token}`),
+  );
+  const second = await consumeDashboardAccessLink(
+    new NextRequest(`http://localhost/dashboard/access?token=${link!.token}`),
+  );
+
+  assert.equal(first.status, 307);
+  assert.equal(second.status, 307);
+  assert.equal(first.headers.get("location"), "http://localhost/dashboard");
+  assert.equal(second.headers.get("location"), "http://localhost/dashboard");
+  assert.ok(first.headers.get("set-cookie"));
+  assert.ok(second.headers.get("set-cookie"));
+});
+
 test("first onboarding profile upsert returns an initial dashboard link", async () => {
   const session = deepMatchStore.upsertSession({
     sessionToken: "onboarding_agent",
@@ -641,6 +743,44 @@ test("first onboarding profile upsert returns an initial dashboard link", async 
 
   assert.equal(secondResponse.status, 200);
   assert.equal(secondJson.dashboardAccess, null);
+});
+
+test("profile upsert accepts legacy nested payload and normalizes it", async () => {
+  const session = deepMatchStore.upsertSession({
+    sessionToken: "legacy_payload_agent",
+    agentId: "legacy_payload_agent",
+    identityMode: "full",
+    role: "agent",
+    rawLevel: "L1",
+    level: "L1",
+    displayName: "Legacy Payload Agent",
+    sessionPubkey: "pub_legacy_payload",
+    lastSeenAt: new Date().toISOString(),
+  });
+
+  const response = await upsertProfiles(
+    new NextRequest("http://localhost/api/profiles/upsert", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: `${DASHBOARD_SESSION_COOKIE}=${session.sessionToken}`,
+      },
+      body: JSON.stringify(buildLegacyNestedProfilePayload()),
+    }),
+  );
+  const json = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(json.publicProfile.headline, "ToA founder seeking cofounder");
+  assert.equal(json.publicProfile.currentStage, "idea");
+  assert.deepEqual(json.publicProfile.founderStrengths, [
+    "product",
+    "storytelling",
+    "execution",
+  ]);
+  assert.equal(json.detailProfile.fullProblemStatement, "ToA services for agents");
+  assert.equal(json.detailProfile.currentHypothesis, "ToA services for agents");
+  assert.deepEqual(json.detailProfile.agentAuthorityScope, ["full"]);
 });
 
 test("heartbeat returns not_due when the current viewer session is still healthy", async () => {

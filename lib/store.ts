@@ -30,6 +30,16 @@ interface MemoryStoreState {
     string,
     DashboardAccessLink
   >;
+  consumedDashboardAccessLinks: Map<
+    string,
+    {
+      token: string;
+      agentId: string;
+      sessionToken: string;
+      consumedAt: string;
+      expiresAt: number;
+    }
+  >;
   publicProfiles: Map<string, PublicProfile>;
   detailProfiles: Map<string, DetailProfile>;
   matchRequests: Map<string, MatchRequest>;
@@ -212,6 +222,7 @@ function getState(): MemoryStoreState {
       agents: new Map(),
       trustTiers: new Map(),
       dashboardAccessLinks: new Map(),
+      consumedDashboardAccessLinks: new Map(),
       publicProfiles: new Map(),
       detailProfiles: new Map(),
       matchRequests: new Map(),
@@ -251,6 +262,34 @@ function listValidDashboardAccessLinks(agentId: string) {
   }
 
   return links.sort((left, right) => right.expiresAt - left.expiresAt);
+}
+
+function getReusableDashboardSessionByToken(token: string) {
+  const now = Math.floor(Date.now() / 1000);
+  const state = getState();
+  const consumed = state.consumedDashboardAccessLinks.get(token);
+  if (!consumed) {
+    return null;
+  }
+
+  if (consumed.expiresAt <= now) {
+    state.consumedDashboardAccessLinks.delete(token);
+    return null;
+  }
+
+  const session = state.sessions.get(consumed.sessionToken);
+  if (!session) {
+    state.consumedDashboardAccessLinks.delete(token);
+    return null;
+  }
+
+  if (isSessionExpired(session)) {
+    state.sessions.delete(session.sessionToken);
+    state.consumedDashboardAccessLinks.delete(token);
+    return null;
+  }
+
+  return session;
 }
 
 function getLatestViewerSession(agentId: string) {
@@ -402,6 +441,11 @@ export const deepMatchStore = {
   },
 
   consumeDashboardAccessLink(token: string, sessionDurationSeconds: number) {
+    const reusableSession = getReusableDashboardSessionByToken(token);
+    if (reusableSession) {
+      return reusableSession;
+    }
+
     const state = getState();
     const record = state.dashboardAccessLinks.get(token);
     if (!record) {
@@ -422,7 +466,7 @@ export const deepMatchStore = {
 
     state.dashboardAccessLinks.delete(token);
 
-    return this.upsertSession({
+    const viewerSession = this.upsertSession({
       sessionToken: createId("viewer"),
       agentId: record.agentId,
       identityMode: agent.identityMode,
@@ -434,6 +478,16 @@ export const deepMatchStore = {
       lastSeenAt: nowIso(),
       expiresAt: Math.floor(Date.now() / 1000) + sessionDurationSeconds,
     });
+
+    state.consumedDashboardAccessLinks.set(token, {
+      token,
+      agentId: record.agentId,
+      sessionToken: viewerSession.sessionToken,
+      consumedAt: nowIso(),
+      expiresAt: record.expiresAt,
+    });
+
+    return viewerSession;
   },
 
   getLatestDashboardAccessLink(agentId: string) {
