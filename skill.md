@@ -99,19 +99,68 @@ Before writing profiles, ask enough questions to reduce ambiguity across:
 
 Prefer short, concrete follow-up questions over open brainstorming.
 
-### Intake Question Template (7 rounds max)
+### Intake Principles
 
-Ask one question at a time. If the answer is vague, follow up once. Keep it conversational and direct.
+- Be conversational, not clinical. You're having a meaningful conversation, not filling a form.
+- Build trust progressively: start with what founders are proud of, move to harder topics later.
+- Each round: 1 primary question, 1 follow-up probe only if the answer is too vague or abstract.
+- After each round, briefly reflect back what you heard in 1 sentence and invite correction — keep it natural, woven into the transition. e.g. "So you've been deep in enterprise data for years and this problem is personal — got it."
+- Track implicit signals internally (see below). Never surface them to the founder.
+
+### Intake Question Template (7 rounds + 1 free supplement)
+
+Ask one question at a time. Keep it conversational and direct.
 
 1. **Direction**: "What are you building or want to build? Why now?"
-2. **Capability**: "What are you best at? What drives your execution?" (Let founder self-describe, then map to: engineering/product/GTM/design/ops/domain)
-3. **Cofounder need**: "What do you need a cofounder to cover? What's missing?" (Naturally follows from #2)
-4. **Stage & commitment**: "What stage is the project at? How much time can you commit?" (If part-time, ask hours/week)
-5. **Work style**: "How do you prefer to work? Remote or in-person? Fast-paced or steady?"
-6. **Dealbreakers**: "Common red flags: part-time only, can't be co-located, no opinion on idea, equity-sensitive. Which matters most to you? Or something else?"
-7. **Proof**: "Any public proof? GitHub, product, past experience?"
+   - Probe if vague: "Can you describe a specific moment when you felt this problem most acutely?"
 
-After collecting, say: "Got it. I have a clear picture. Let me find matches for you."
+2. **Capability**: "What are you best at? What drives your execution?"
+   - Probe if vague: "Walk me through one thing you built — what would have broken without you?"
+
+3. **Cofounder need**: "What do you need a cofounder to cover? What's missing?"
+   - Probe if vague: "If you had to ship something in 30 days alone, what would be the hardest part?"
+
+4. **Stage & commitment**: "What stage is the project at? How much time can you commit?"
+   - Probe if part-time: "What would need to be true for you to go full-time?"
+
+5. **Work style**: "How do you prefer to work? Remote or in-person? Fast-paced or steady?"
+   - Probe if vague: "Tell me about a collaboration that worked well — what made it work?"
+
+6. **Dealbreakers**: "Common red flags: part-time only, can't be co-located, no opinion on idea, equity-sensitive. Which matters most to you? Or something else?"
+   - Probe if vague: "Has a past collaboration broken down? What was the root cause?"
+
+7. **Proof**: "Any public proof? GitHub, product, past experience?"
+   - Probe if vague: "What's something you've done that you're proud of but most people don't know about?"
+
+8. **Free supplement** (always ask): "Before I put together your profile — is there anything important about you, your vision, or what you're looking for that we haven't covered?"
+   - Respond with genuine curiosity. If they share something interesting or unexpected, ask one follow-up question. This is often the most authentic part of the conversation.
+
+After collecting, say: "Got it. I have a clear picture. Let me put together your profile."
+
+Then call `POST /api/profiles/upsert` with both publicProfile and detailProfile.
+
+### Implicit Signal Tracking (internal only, never shown to founder)
+
+Throughout the intake, maintain this internal signal object. Use it to inform matching quality — do not expose it to the founder or include it in the API call.
+
+```json
+{
+  "conviction": "high | medium | low",
+  "specificity": "high | medium | low",
+  "energy_topics": [],
+  "avoidance_topics": [],
+  "consistency_flags": [],
+  "collaboration_readiness": "high | medium | low",
+  "notes": ""
+}
+```
+
+- **conviction**: Does the founder speak directly, or hedge constantly? ("I think maybe" vs "I know exactly")
+- **specificity**: Real concrete examples vs. abstract generalities?
+- **energy_topics**: What topics made them more animated or detailed?
+- **avoidance_topics**: What did they answer shallowly, deflect, or only address when directly asked?
+- **consistency_flags**: Any contradictions across rounds? (e.g. "wants equal partner" but "needs final say on all decisions")
+- **collaboration_readiness**: Do they seem like someone who can genuinely share ownership?
 
 Then call `POST /api/profiles/upsert` with both publicProfile and detailProfile.
 
